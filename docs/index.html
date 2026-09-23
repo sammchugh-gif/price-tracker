@@ -1,0 +1,555 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<title>Telco Yield Monitor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f5f5f2;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --axis: #c3c2b7;
+    --border: rgba(11, 11, 11, 0.10);
+    --s-t: #2a78d6;
+    --s-vz: #eb6834;
+    --s-10y: #0b0b0b;
+    --neg: #d03b3b;
+    --focus: #2a78d6;
+    --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --display: "Newsreader", Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #ffffff;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --axis: #383835;
+      --border: rgba(255, 255, 255, 0.10);
+      --s-t: #3987e5;
+      --s-vz: #d95926;
+      --s-10y: #ffffff;
+      --neg: #e66767;
+      --focus: #3987e5;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0d0d0d;
+    --surface: #1a1a19;
+    --ink: #ffffff;
+    --ink-2: #c3c2b7;
+    --muted: #898781;
+    --grid: #2c2c2a;
+    --axis: #383835;
+    --border: rgba(255, 255, 255, 0.10);
+    --s-t: #3987e5;
+    --s-vz: #d95926;
+    --s-10y: #ffffff;
+    --neg: #e66767;
+    --focus: #3987e5;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  .wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding-block: 28px 40px;
+    padding-inline: 16px;
+    display: grid;
+    gap: 20px;
+  }
+  header { display: grid; gap: 6px; }
+  h1 {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 30px;
+    line-height: 1.15;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .sub { color: var(--ink-2); margin: 0; max-width: 68ch; }
+  .sub b { color: var(--ink); font-weight: 500; }
+  .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 500;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    align-items: center;
+  }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--surface); }
+  .seg button {
+    font: inherit;
+    font-size: 13px;
+    padding: 6px 12px;
+    border: 0;
+    background: transparent;
+    color: var(--ink-2);
+    cursor: pointer;
+    min-height: 32px;
+  }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .seg button:focus-visible, .toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+  .ctl-label { color: var(--muted); font-size: 12px; margin-right: 6px; }
+  .toggle {
+    font: inherit; font-size: 13px; padding: 6px 12px; min-height: 32px;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--ink-2); cursor: pointer;
+  }
+  .toggle[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+  }
+  .tile {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: grid;
+    gap: 2px;
+    border-left-width: 3px;
+  }
+  .tile .k { font-size: 12px; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+  .tile .v { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; }
+  .tile .s { font-size: 12px; color: var(--muted); }
+  .tile .s .neg { color: var(--neg); }
+  .key { display: inline-block; width: 14px; height: 0; border-top: 2px solid currentColor; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px 10px;
+    display: grid;
+    gap: 8px;
+    position: relative;
+  }
+  .card h2 { font-size: 15px; font-weight: 600; margin: 0; }
+  .card .desc { margin: 0; color: var(--ink-2); font-size: 13px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .chart { width: 100%; height: 340px; }
+  .chart svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .chart text { font-family: var(--font); font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .chart .grid line { stroke: var(--grid); stroke-width: 1; shape-rendering: crispEdges; }
+  .chart .axis line { stroke: var(--axis); stroke-width: 1; shape-rendering: crispEdges; }
+  .chart .zero { stroke: var(--axis); stroke-width: 1.5; shape-rendering: crispEdges; }
+  .chart path.line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .chart path.line.bench { stroke-width: 1.5; }
+  .chart .endlabel { font-size: 11px; font-weight: 600; fill: var(--ink); }
+  .chart .crosshair { stroke: var(--ink-2); stroke-width: 1; shape-rendering: crispEdges; opacity: 0; }
+  .chart .dot { stroke: var(--surface); stroke-width: 2; opacity: 0; }
+  .chart .hit { fill: transparent; cursor: crosshair; }
+  .tip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    display: none;
+    min-width: 160px;
+    z-index: 2;
+  }
+  .tip .d { color: var(--muted); margin-bottom: 4px; }
+  .tip .row { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+  .tip .row b { font-variant-numeric: tabular-nums; }
+  .tip .row span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; position: sticky; top: 0; background: var(--surface); }
+  td.neg { color: var(--neg); }
+
+  .notes { color: var(--ink-2); font-size: 12.5px; display: grid; gap: 6px; max-width: 80ch; }
+  .notes p { margin: 0; }
+  .notes a { color: inherit; }
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .chart { height: 280px; }
+    .tile .v { font-size: 22px; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .seg button, .toggle { transition: background-color 120ms ease; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Income equities vs the risk-free rate</div>
+    <h1>AT&amp;T and Verizon dividend yields against the 10-year Treasury</h1>
+    <p class="sub" id="subline"></p>
+  </header>
+
+  <div class="controls" role="group" aria-label="Filters">
+    <div>
+      <span class="ctl-label">Range</span>
+      <div class="seg" id="range-seg">
+        <button type="button" id="range-1y" data-range="1Y">1Y</button>
+        <button type="button" id="range-3y" data-range="3Y">3Y</button>
+        <button type="button" id="range-5y" data-range="5Y" aria-pressed="true">5Y</button>
+        <button type="button" id="range-max" data-range="MAX">Max</button>
+      </div>
+    </div>
+    <div>
+      <span class="ctl-label">Yield basis</span>
+      <div class="seg" id="basis-seg">
+        <button type="button" id="basis-ind" data-basis="ind" aria-pressed="true">Indicated</button>
+        <button type="button" id="basis-ttm" data-basis="ttm">Trailing 12M</button>
+      </div>
+    </div>
+    <button type="button" class="toggle" id="table-toggle" aria-pressed="false" aria-controls="table-card">Table view</button>
+  </div>
+
+  <section class="tiles" id="tiles" aria-label="Latest readings"></section>
+
+  <section class="card">
+    <h2>Dividend yield vs 10-year Treasury yield</h2>
+    <p class="desc" id="yield-desc"></p>
+    <div class="legend">
+      <span><i class="key" style="color:var(--s-t)"></i>AT&amp;T (T)</span>
+      <span><i class="key" style="color:var(--s-vz)"></i>Verizon (VZ)</span>
+      <span><i class="key" style="color:var(--s-10y)"></i>US 10-year Treasury</span>
+    </div>
+    <div class="chart" id="chart-yield"></div>
+    <div class="tip" id="tip-yield"></div>
+  </section>
+
+  <section class="card">
+    <h2>Yield spread to the 10-year Treasury</h2>
+    <p class="desc">Dividend yield minus the 10-year yield, in basis points. Below zero means the Treasury out-yields the stock.</p>
+    <div class="legend">
+      <span><i class="key" style="color:var(--s-t)"></i>T minus 10Y</span>
+      <span><i class="key" style="color:var(--s-vz)"></i>VZ minus 10Y</span>
+    </div>
+    <div class="chart" id="chart-spread"></div>
+    <div class="tip" id="tip-spread"></div>
+  </section>
+
+  <section class="card" id="table-card" hidden>
+    <h2>Weekly observations</h2>
+    <p class="desc" id="table-desc"></p>
+    <div class="tablewrap"><table id="table"><thead></thead><tbody></tbody></table></div>
+  </section>
+
+  <section class="notes" id="notes"></section>
+</div>
+
+<script>
+(function () {
+  const DATA = {"meta":{"asOf":"2026-09-22","firstDate":"2016-01-01","lastDividend":{"T":{"exDate":"2026-07-10","amount":0.2775},"VZ":{"exDate":"2026-07-10","amount":0.7075}},"sources":{"prices":"Yahoo Finance daily closes via Wolfram FinancialData, weekly Friday observations","dividends":"Yahoo Finance cash dividend history via Wolfram FinancialData","treasury":"FRED series DGS10, 10-year Treasury constant maturity, daily, percent"}},"rows":[{"d":"2016-01-01","tP":34.39,"vP":46.22,"y10":2.27,"tInd":5.47,"tTtm":5.47,"vInd":4.89,"vTtm":4.79},{"d":"2016-01-08","tP":33.52,"vP":44.83,"y10":2.13,"tInd":5.73,"tTtm":5.64,"vInd":5.04,"vTtm":4.97},{"d":"2016-01-15","tP":33.97,"vP":44.43,"y10":2.03,"tInd":5.65,"tTtm":5.56,"vInd":5.09,"vTtm":5.02},{"d":"2016-01-22","tP":35.12,"vP":47.04,"y10":2.07,"tInd":5.47,"tTtm":5.38,"vInd":4.8,"vTtm":4.74},{"d":"2016-01-29","tP":36.04,"vP":49.97,"y10":1.94,"tInd":5.33,"tTtm":5.24,"vInd":4.52,"vTtm":4.46},{"d":"2016-02-05","tP":36.85,"vP":50.97,"y10":1.86,"tInd":5.21,"tTtm":5.13,"vInd":4.43,"vTtm":4.38},{"d":"2016-02-12","tP":36.45,"vP":50.11,"y10":1.74,"tInd":5.27,"tTtm":5.19,"vInd":4.51,"vTtm":4.45},{"d":"2016-02-19","tP":36.55,"vP":50.86,"y10":1.76,"tInd":5.25,"tTtm":5.17,"vInd":4.44,"vTtm":4.38},{"d":"2016-02-26","tP":37.1,"vP":51.02,"y10":1.76,"tInd":5.17,"tTtm":5.09,"vInd":4.43,"vTtm":4.37},{"d":"2016-03-04","tP":37.9,"vP":51.81,"y10":1.88,"tInd":5.07,"tTtm":4.99,"vInd":4.36,"vTtm":4.3},{"d":"2016-03-11","tP":38.33,"vP":52.53,"y10":1.98,"tInd":5.01,"tTtm":4.93,"vInd":4.3,"vTtm":4.25},{"d":"2016-03-18","tP":38.53,"vP":53.24,"y10":1.88,"tInd":4.98,"tTtm":4.9,"vInd":4.24,"vTtm":4.19},{"d":"2016-03-25","tP":38.85,"vP":53.56,"y10":1.91,"tInd":4.94,"tTtm":4.86,"vInd":4.22,"vTtm":4.16},{"d":"2016-04-01","tP":39.02,"vP":54.01,"y10":1.79,"tInd":4.92,"tTtm":4.84,"vInd":4.18,"vTtm":4.13},{"d":"2016-04-08","tP":38.47,"vP":52.18,"y10":1.72,"tInd":4.99,"tTtm":4.94,"vInd":4.33,"vTtm":4.3},{"d":"2016-04-15","tP":38.45,"vP":51.35,"y10":1.76,"tInd":4.99,"tTtm":4.94,"vInd":4.4,"vTtm":4.37},{"d":"2016-04-22","tP":38.04,"vP":50.55,"y10":1.89,"tInd":5.05,"tTtm":4.99,"vInd":4.47,"vTtm":4.44},{"d":"2016-04-29","tP":38.79,"vP":50.94,"y10":1.83,"tInd":4.95,"tTtm":4.9,"vInd":4.44,"vTtm":4.41},{"d":"2016-05-06","tP":38.96,"vP":51.12,"y10":1.79,"tInd":4.93,"tTtm":4.88,"vInd":4.42,"vTtm":4.39},{"d":"2016-05-13","tP":39.12,"vP":50.94,"y10":1.71,"tInd":4.91,"tTtm":4.86,"vInd":4.44,"vTtm":4.41},{"d":"2016-05-20","tP":38.42,"vP":49.66,"y10":1.85,"tInd":5.0,"tTtm":4.94,"vInd":4.55,"vTtm":4.52},{"d":"2016-05-27","tP":38.96,"vP":50.62,"y10":1.85,"tInd":4.93,"tTtm":4.88,"vInd":4.46,"vTtm":4.44},{"d":"2016-06-03","tP":39.18,"vP":50.92,"y10":1.71,"tInd":4.9,"tTtm":4.85,"vInd":4.44,"vTtm":4.41},{"d":"2016-06-10","tP":40.3,"vP":52.67,"y10":1.64,"tInd":4.76,"tTtm":4.71,"vInd":4.29,"vTtm":4.26},{"d":"2016-06-17","tP":40.7,"vP":53.78,"y10":1.62,"tInd":4.72,"tTtm":4.67,"vInd":4.2,"vTtm":4.17},{"d":"2016-06-24","tP":41.49,"vP":54.43,"y10":1.57,"tInd":4.63,"tTtm":4.58,"vInd":4.15,"vTtm":4.12},{"d":"2016-07-01","tP":43.44,"vP":56.23,"y10":1.46,"tInd":4.42,"tTtm":4.37,"vInd":4.02,"vTtm":3.99},{"d":"2016-07-08","tP":42.58,"vP":55.9,"y10":1.37,"tInd":4.51,"tTtm":4.49,"vInd":4.04,"vTtm":4.04},{"d":"2016-07-15","tP":42.86,"vP":55.84,"y10":1.6,"tInd":4.48,"tTtm":4.46,"vInd":4.05,"vTtm":4.05},{"d":"2016-07-22","tP":43.08,"vP":56.1,"y10":1.57,"tInd":4.46,"tTtm":4.43,"vInd":4.03,"vTtm":4.03},{"d":"2016-07-29","tP":43.26,"vP":55.41,"y10":1.46,"tInd":4.44,"tTtm":4.42,"vInd":4.08,"vTtm":4.08},{"d":"2016-08-05","tP":43.13,"vP":53.64,"y10":1.59,"tInd":4.45,"tTtm":4.43,"vInd":4.21,"vTtm":4.21},{"d":"2016-08-12","tP":43.25,"vP":53.65,"y10":1.51,"tInd":4.44,"tTtm":4.42,"vInd":4.21,"vTtm":4.21},{"d":"2016-08-19","tP":40.98,"vP":52.45,"y10":1.58,"tInd":4.68,"tTtm":4.66,"vInd":4.31,"vTtm":4.31},{"d":"2016-08-26","tP":40.65,"vP":52.07,"y10":1.62,"tInd":4.72,"tTtm":4.7,"vInd":4.34,"vTtm":4.34},{"d":"2016-09-02","tP":40.92,"vP":52.88,"y10":1.6,"tInd":4.69,"tTtm":4.67,"vInd":4.27,"vTtm":4.27},{"d":"2016-09-09","tP":39.68,"vP":51.82,"y10":1.67,"tInd":4.84,"tTtm":4.81,"vInd":4.36,"vTtm":4.36},{"d":"2016-09-16","tP":40.17,"vP":51.88,"y10":1.7,"tInd":4.78,"tTtm":4.75,"vInd":4.36,"vTtm":4.36},{"d":"2016-09-23","tP":41.25,"vP":52.56,"y10":1.62,"tInd":4.65,"tTtm":4.63,"vInd":4.3,"vTtm":4.3},{"d":"2016-09-30","tP":40.58,"vP":51.98,"y10":1.6,"tInd":4.73,"tTtm":4.71,"vInd":4.35,"vTtm":4.35},{"d":"2016-10-07","tP":38.84,"vP":49.92,"y10":1.73,"tInd":4.94,"tTtm":4.94,"vInd":4.63,"vTtm":4.55},{"d":"2016-10-14","tP":39.19,"vP":50.28,"y10":1.8,"tInd":4.9,"tTtm":4.9,"vInd":4.59,"vTtm":4.52},{"d":"2016-10-21","tP":37.46,"vP":48.2,"y10":1.74,"tInd":5.12,"tTtm":5.12,"vInd":4.79,"vTtm":4.71},{"d":"2016-10-28","tP":36.49,"vP":48.21,"y10":1.86,"tInd":5.26,"tTtm":5.26,"vInd":4.79,"vTtm":4.71},{"d":"2016-11-04","tP":36.48,"vP":47.08,"y10":1.79,"tInd":5.26,"tTtm":5.26,"vInd":4.91,"vTtm":4.83},{"d":"2016-11-11","tP":36.49,"vP":46.69,"y10":2.15,"tInd":5.26,"tTtm":5.26,"vInd":4.95,"vTtm":4.87},{"d":"2016-11-18","tP":37.53,"vP":48.07,"y10":2.34,"tInd":5.12,"tTtm":5.12,"vInd":4.81,"vTtm":4.73},{"d":"2016-11-25","tP":39.18,"vP":50.67,"y10":2.36,"tInd":4.9,"tTtm":4.9,"vInd":4.56,"vTtm":4.48},{"d":"2016-12-02","tP":38.58,"vP":49.81,"y10":2.4,"tInd":4.98,"tTtm":4.98,"vInd":4.64,"vTtm":4.56},{"d":"2016-12-09","tP":40.35,"vP":51.49,"y10":2.47,"tInd":4.76,"tTtm":4.76,"vInd":4.49,"vTtm":4.41},{"d":"2016-12-16","tP":41.64,"vP":52.27,"y10":2.6,"tInd":4.61,"tTtm":4.61,"vInd":4.42,"vTtm":4.35},{"d":"2016-12-23","tP":42.7,"vP":53.68,"y10":2.55,"tInd":4.5,"tTtm":4.5,"vInd":4.3,"vTtm":4.23},{"d":"2016-12-30","tP":42.5,"vP":53.38,"y10":2.45,"tInd":4.52,"tTtm":4.52,"vInd":4.33,"vTtm":4.26},{"d":"2017-01-06","tP":41.29,"vP":53.26,"y10":2.42,"tInd":4.75,"tTtm":4.67,"vInd":4.34,"vTtm":4.29},{"d":"2017-01-13","tP":40.93,"vP":52.55,"y10":2.4,"tInd":4.79,"tTtm":4.72,"vInd":4.4,"vTtm":4.35},{"d":"2017-01-20","tP":41.42,"vP":52.72,"y10":2.48,"tInd":4.73,"tTtm":4.66,"vInd":4.38,"vTtm":4.33},{"d":"2017-01-27","tP":41.98,"vP":49.6,"y10":2.49,"tInd":4.67,"tTtm":4.6,"vInd":4.66,"vTtm":4.61},{"d":"2017-02-03","tP":41.22,"vP":48.58,"y10":2.49,"tInd":4.75,"tTtm":4.68,"vInd":4.76,"vTtm":4.7},{"d":"2017-02-10","tP":41.35,"vP":48.98,"y10":2.41,"tInd":4.74,"tTtm":4.67,"vInd":4.72,"vTtm":4.67},{"d":"2017-02-17","tP":41.45,"vP":49.19,"y10":2.42,"tInd":4.73,"tTtm":4.66,"vInd":4.7,"vTtm":4.65},{"d":"2017-02-24","tP":42.33,"vP":50.6,"y10":2.31,"tInd":4.63,"tTtm":4.56,"vInd":4.57,"vTtm":4.52},{"d":"2017-03-03","tP":41.98,"vP":50.09,"y10":2.49,"tInd":4.67,"tTtm":4.6,"vInd":4.61,"vTtm":4.56},{"d":"2017-03-10","tP":42.32,"vP":49.35,"y10":2.58,"tInd":4.63,"tTtm":4.56,"vInd":4.68,"vTtm":4.63},{"d":"2017-03-17","tP":42.58,"vP":50.39,"y10":2.5,"tInd":4.6,"tTtm":4.53,"vInd":4.58,"vTtm":4.53},{"d":"2017-03-24","tP":41.65,"vP":49.68,"y10":2.4,"tInd":4.71,"tTtm":4.63,"vInd":4.65,"vTtm":4.6},{"d":"2017-03-31","tP":41.52,"vP":48.75,"y10":2.4,"tInd":4.72,"tTtm":4.65,"vInd":4.74,"vTtm":4.69},{"d":"2017-04-07","tP":40.56,"vP":48.66,"y10":2.38,"tInd":4.83,"tTtm":4.78,"vInd":4.75,"vTtm":4.72},{"d":"2017-04-14","tP":40.25,"vP":48.62,"y10":2.24,"tInd":4.87,"tTtm":4.82,"vInd":4.75,"vTtm":4.73},{"d":"2017-04-21","tP":39.9,"vP":47.25,"y10":2.24,"tInd":4.91,"tTtm":4.86,"vInd":4.89,"vTtm":4.86},{"d":"2017-04-28","tP":39.6,"vP":45.91,"y10":2.29,"tInd":4.95,"tTtm":4.9,"vInd":5.03,"vTtm":5.0},{"d":"2017-05-05","tP":38.53,"vP":46.69,"y10":2.36,"tInd":5.09,"tTtm":5.03,"vInd":4.95,"vTtm":4.92},{"d":"2017-05-12","tP":38.46,"vP":45.84,"y10":2.33,"tInd":5.1,"tTtm":5.04,"vInd":5.04,"vTtm":5.01},{"d":"2017-05-19","tP":38.21,"vP":45.42,"y10":2.23,"tInd":5.13,"tTtm":5.08,"vInd":5.09,"vTtm":5.06},{"d":"2017-05-26","tP":38.09,"vP":45.32,"y10":2.25,"tInd":5.15,"tTtm":5.09,"vInd":5.1,"vTtm":5.07},{"d":"2017-06-02","tP":38.84,"vP":46.44,"y10":2.15,"tInd":5.05,"tTtm":4.99,"vInd":4.97,"vTtm":4.95},{"d":"2017-06-09","tP":38.76,"vP":46.72,"y10":2.21,"tInd":5.06,"tTtm":5.0,"vInd":4.94,"vTtm":4.92},{"d":"2017-06-16","tP":38.93,"vP":46.63,"y10":2.16,"tInd":5.03,"tTtm":4.98,"vInd":4.95,"vTtm":4.93},{"d":"2017-06-23","tP":37.92,"vP":45.39,"y10":2.15,"tInd":5.17,"tTtm":5.12,"vInd":5.09,"vTtm":5.06},{"d":"2017-06-30","tP":37.7,"vP":44.66,"y10":2.31,"tInd":5.2,"tTtm":5.15,"vInd":5.17,"vTtm":5.14},{"d":"2017-07-07","tP":36.95,"vP":43.48,"y10":2.39,"tInd":5.3,"tTtm":5.28,"vInd":5.31,"vTtm":5.31},{"d":"2017-07-14","tP":36.28,"vP":43.56,"y10":2.33,"tInd":5.4,"tTtm":5.38,"vInd":5.3,"vTtm":5.3},{"d":"2017-07-21","tP":36.49,"vP":44.23,"y10":2.24,"tInd":5.37,"tTtm":5.34,"vInd":5.22,"vTtm":5.22},{"d":"2017-07-28","tP":38.97,"vP":47.94,"y10":2.3,"tInd":5.03,"tTtm":5.0,"vInd":4.82,"vTtm":4.82},{"d":"2017-08-04","tP":38.4,"vP":48.91,"y10":2.27,"tInd":5.1,"tTtm":5.08,"vInd":4.72,"vTtm":4.72},{"d":"2017-08-11","tP":38.07,"vP":48.06,"y10":2.19,"tInd":5.15,"tTtm":5.12,"vInd":4.81,"vTtm":4.81},{"d":"2017-08-18","tP":37.34,"vP":47.69,"y10":2.19,"tInd":5.25,"tTtm":5.22,"vInd":4.84,"vTtm":4.84},{"d":"2017-08-25","tP":37.96,"vP":48.68,"y10":2.17,"tInd":5.16,"tTtm":5.14,"vInd":4.75,"vTtm":4.75},{"d":"2017-09-01","tP":37.45,"vP":47.92,"y10":2.16,"tInd":5.23,"tTtm":5.21,"vInd":4.82,"vTtm":4.82},{"d":"2017-09-08","tP":35.57,"vP":46.11,"y10":2.06,"tInd":5.51,"tTtm":5.48,"vInd":5.01,"vTtm":5.01},{"d":"2017-09-15","tP":37.07,"vP":47.86,"y10":2.2,"tInd":5.29,"tTtm":5.26,"vInd":4.83,"vTtm":4.83},{"d":"2017-09-22","tP":38.56,"vP":49.9,"y10":2.26,"tInd":5.08,"tTtm":5.06,"vInd":4.63,"vTtm":4.63},{"d":"2017-09-29","tP":39.14,"vP":49.49,"y10":2.33,"tInd":5.01,"tTtm":4.98,"vInd":4.67,"vTtm":4.67},{"d":"2017-10-06","tP":38.56,"vP":48.81,"y10":2.37,"tInd":5.08,"tTtm":5.08,"vInd":4.84,"vTtm":4.76},{"d":"2017-10-13","tP":35.68,"vP":47.86,"y10":2.28,"tInd":5.49,"tTtm":5.49,"vInd":4.93,"vTtm":4.85},{"d":"2017-10-20","tP":35.52,"vP":49.53,"y10":2.39,"tInd":5.52,"tTtm":5.52,"vInd":4.76,"vTtm":4.69},{"d":"2017-10-27","tP":33.95,"vP":48.87,"y10":2.42,"tInd":5.77,"tTtm":5.77,"vInd":4.83,"vTtm":4.75},{"d":"2017-11-03","tP":33.28,"vP":47.42,"y10":2.34,"tInd":5.89,"tTtm":5.89,"vInd":4.98,"vTtm":4.9},{"d":"2017-11-10","tP":34.2,"vP":44.88,"y10":2.4,"tInd":5.73,"tTtm":5.73,"vInd":5.26,"vTtm":5.17},{"d":"2017-11-17","tP":34.49,"vP":45.42,"y10":2.35,"tInd":5.68,"tTtm":5.68,"vInd":5.2,"vTtm":5.11},{"d":"2017-11-24","tP":34.79,"vP":47.01,"y10":2.34,"tInd":5.63,"tTtm":5.63,"vInd":5.02,"vTtm":4.94},{"d":"2017-12-01","tP":36.48,"vP":51.25,"y10":2.37,"tInd":5.37,"tTtm":5.37,"vInd":4.6,"vTtm":4.53},{"d":"2017-12-08","tP":36.71,"vP":51.09,"y10":2.38,"tInd":5.34,"tTtm":5.34,"vInd":4.62,"vTtm":4.55},{"d":"2017-12-15","tP":38.21,"vP":52.67,"y10":2.35,"tInd":5.13,"tTtm":5.13,"vInd":4.48,"vTtm":4.41},{"d":"2017-12-22","tP":38.91,"vP":53.19,"y10":2.48,"tInd":5.04,"tTtm":5.04,"vInd":4.44,"vTtm":4.37},{"d":"2017-12-29","tP":38.85,"vP":52.93,"y10":2.4,"tInd":5.04,"tTtm":5.04,"vInd":4.46,"vTtm":4.39},{"d":"2018-01-05","tP":38.11,"vP":52.48,"y10":2.47,"tInd":5.14,"tTtm":5.14,"vInd":4.5,"vTtm":4.43},{"d":"2018-01-12","tP":36.87,"vP":51.86,"y10":2.55,"tInd":5.42,"tTtm":5.34,"vInd":4.55,"vTtm":4.5},{"d":"2018-01-19","tP":37.18,"vP":51.91,"y10":2.64,"tInd":5.38,"tTtm":5.3,"vInd":4.55,"vTtm":4.5},{"d":"2018-01-26","tP":37.79,"vP":54.72,"y10":2.66,"tInd":5.29,"tTtm":5.21,"vInd":4.31,"vTtm":4.27},{"d":"2018-02-02","tP":38.04,"vP":52.98,"y10":2.84,"tInd":5.26,"tTtm":5.18,"vInd":4.45,"vTtm":4.41},{"d":"2018-02-09","tP":36.03,"vP":49.88,"y10":2.83,"tInd":5.55,"tTtm":5.47,"vInd":4.73,"vTtm":4.68},{"d":"2018-02-16","tP":37.11,"vP":50.15,"y10":2.87,"tInd":5.39,"tTtm":5.31,"vInd":4.71,"vTtm":4.66},{"d":"2018-02-23","tP":36.7,"vP":48.29,"y10":2.88,"tInd":5.45,"tTtm":5.37,"vInd":4.89,"vTtm":4.84},{"d":"2018-03-02","tP":36.33,"vP":48.26,"y10":2.86,"tInd":5.51,"tTtm":5.42,"vInd":4.89,"vTtm":4.84},{"d":"2018-03-09","tP":37.02,"vP":49.01,"y10":2.9,"tInd":5.4,"tTtm":5.32,"vInd":4.82,"vTtm":4.76},{"d":"2018-03-16","tP":36.97,"vP":48.56,"y10":2.85,"tInd":5.41,"tTtm":5.33,"vInd":4.86,"vTtm":4.81},{"d":"2018-03-23","tP":34.68,"vP":46.29,"y10":2.82,"tInd":5.77,"tTtm":5.68,"vInd":5.1,"vTtm":5.04},{"d":"2018-03-30","tP":35.63,"vP":47.82,"y10":2.74,"tInd":5.61,"tTtm":5.53,"vInd":4.94,"vTtm":4.88},{"d":"2018-04-06","tP":35.61,"vP":47.48,"y10":2.77,"tInd":5.62,"tTtm":4.16,"vInd":4.97,"vTtm":3.7},{"d":"2018-04-13","tP":35.12,"vP":47.66,"y10":2.82,"tInd":5.7,"tTtm":5.64,"vInd":4.95,"vTtm":4.93},{"d":"2018-04-20","tP":34.65,"vP":47.9,"y10":2.96,"tInd":5.77,"tTtm":5.71,"vInd":4.93,"vTtm":4.9},{"d":"2018-04-27","tP":33.02,"vP":51.57,"y10":2.96,"tInd":6.06,"tTtm":6.0,"vInd":4.58,"vTtm":4.55},{"d":"2018-05-04","tP":32.12,"vP":48.19,"y10":2.95,"tInd":6.23,"tTtm":6.16,"vInd":4.9,"vTtm":4.87},{"d":"2018-05-11","tP":32.27,"vP":48.62,"y10":2.97,"tInd":6.2,"tTtm":6.14,"vInd":4.85,"vTtm":4.83},{"d":"2018-05-18","tP":32.03,"vP":47.74,"y10":3.06,"tInd":6.24,"tTtm":6.18,"vInd":4.94,"vTtm":4.92},{"d":"2018-05-25","tP":32.49,"vP":48.52,"y10":2.93,"tInd":6.16,"tTtm":6.09,"vInd":4.86,"vTtm":4.84},{"d":"2018-06-01","tP":32.45,"vP":47.81,"y10":2.89,"tInd":6.16,"tTtm":6.1,"vInd":4.94,"vTtm":4.91},{"d":"2018-06-08","tP":33.81,"vP":49.18,"y10":2.93,"tInd":5.92,"tTtm":5.86,"vInd":4.8,"vTtm":4.77},{"d":"2018-06-15","tP":33.13,"vP":48.06,"y10":2.93,"tInd":6.04,"tTtm":5.98,"vInd":4.91,"vTtm":4.88},{"d":"2018-06-22","tP":31.67,"vP":49.76,"y10":2.9,"tInd":6.32,"tTtm":6.25,"vInd":4.74,"vTtm":4.72},{"d":"2018-06-29","tP":32.09,"vP":50.31,"y10":2.85,"tInd":6.23,"tTtm":6.17,"vInd":4.69,"vTtm":4.67},{"d":"2018-07-06","tP":32.66,"vP":51.48,"y10":2.82,"tInd":6.12,"tTtm":4.56,"vInd":4.58,"vTtm":3.44},{"d":"2018-07-13","tP":31.65,"vP":51.41,"y10":2.83,"tInd":6.32,"tTtm":6.29,"vInd":4.59,"vTtm":4.59},{"d":"2018-07-20","tP":31.08,"vP":50.62,"y10":2.89,"tInd":6.44,"tTtm":6.4,"vInd":4.66,"vTtm":4.66},{"d":"2018-07-27","tP":31.06,"vP":52.01,"y10":2.96,"tInd":6.44,"tTtm":6.41,"vInd":4.54,"vTtm":4.54},{"d":"2018-08-03","tP":32.25,"vP":52.27,"y10":2.95,"tInd":6.2,"tTtm":6.17,"vInd":4.52,"vTtm":4.52},{"d":"2018-08-10","tP":32.24,"vP":52.47,"y10":2.87,"tInd":6.2,"tTtm":6.17,"vInd":4.5,"vTtm":4.5},{"d":"2018-08-17","tP":33.01,"vP":54.79,"y10":2.87,"tInd":6.06,"tTtm":6.03,"vInd":4.31,"vTtm":4.31},{"d":"2018-08-24","tP":32.62,"vP":54.78,"y10":2.82,"tInd":6.13,"tTtm":6.1,"vInd":4.31,"vTtm":4.31},{"d":"2018-08-31","tP":31.92,"vP":54.37,"y10":2.86,"tInd":6.27,"tTtm":6.23,"vInd":4.34,"vTtm":4.34},{"d":"2018-09-07","tP":32.1,"vP":54.0,"y10":2.94,"tInd":6.23,"tTtm":6.2,"vInd":4.37,"vTtm":4.37},{"d":"2018-09-14","tP":33.58,"vP":54.55,"y10":2.99,"tInd":5.96,"tTtm":5.93,"vInd":4.33,"vTtm":4.33},{"d":"2018-09-21","tP":33.76,"vP":54.42,"y10":3.07,"tInd":5.92,"tTtm":5.9,"vInd":4.34,"vTtm":4.34},{"d":"2018-09-28","tP":33.56,"vP":53.39,"y10":3.05,"tInd":5.96,"tTtm":5.93,"vInd":4.42,"vTtm":4.42},{"d":"2018-10-05","tP":33.97,"vP":54.94,"y10":3.23,"tInd":5.89,"tTtm":5.86,"vInd":4.3,"vTtm":4.3},{"d":"2018-10-12","tP":32.23,"vP":53.73,"y10":3.15,"tInd":6.21,"tTtm":6.21,"vInd":4.49,"vTtm":4.42},{"d":"2018-10-19","tP":32.85,"vP":54.9,"y10":3.2,"tInd":6.09,"tTtm":6.09,"vInd":4.39,"vTtm":4.32},{"d":"2018-10-26","tP":29.07,"vP":55.51,"y10":3.08,"tInd":6.88,"tTtm":6.88,"vInd":4.34,"vTtm":4.27},{"d":"2018-11-02","tP":30.5,"vP":56.63,"y10":3.22,"tInd":6.56,"tTtm":6.56,"vInd":4.26,"vTtm":4.19},{"d":"2018-11-09","tP":30.67,"vP":58.46,"y10":3.19,"tInd":6.52,"tTtm":6.52,"vInd":4.12,"vTtm":4.06},{"d":"2018-11-16","tP":30.27,"vP":60.21,"y10":3.08,"tInd":6.61,"tTtm":6.61,"vInd":4.0,"vTtm":3.94},{"d":"2018-11-23","tP":29.34,"vP":58.64,"y10":3.05,"tInd":6.82,"tTtm":6.82,"vInd":4.11,"vTtm":4.05},{"d":"2018-11-30","tP":31.22,"vP":60.3,"y10":3.01,"tInd":6.41,"tTtm":6.41,"vInd":4.0,"vTtm":3.93},{"d":"2018-12-07","tP":30.12,"vP":57.68,"y10":2.85,"tInd":6.64,"tTtm":6.64,"vInd":4.18,"vTtm":4.11},{"d":"2018-12-14","tP":30.2,"vP":57.08,"y10":2.89,"tInd":6.62,"tTtm":6.62,"vInd":4.22,"vTtm":4.16},{"d":"2018-12-21","tP":28.29,"vP":54.92,"y10":2.79,"tInd":7.07,"tTtm":7.07,"vInd":4.39,"vTtm":4.32},{"d":"2018-12-28","tP":28.44,"vP":55.27,"y10":2.72,"tInd":7.03,"tTtm":7.03,"vInd":4.36,"vTtm":4.29},{"d":"2019-01-04","tP":30.32,"vP":56.36,"y10":2.67,"tInd":6.6,"tTtm":6.6,"vInd":4.28,"vTtm":4.21},{"d":"2019-01-11","tP":30.85,"vP":58.02,"y10":2.71,"tInd":6.61,"tTtm":6.52,"vInd":4.15,"vTtm":4.11},{"d":"2019-01-18","tP":30.94,"vP":57.09,"y10":2.79,"tInd":6.59,"tTtm":6.5,"vInd":4.22,"vTtm":4.18},{"d":"2019-01-25","tP":30.64,"vP":56.4,"y10":2.76,"tInd":6.66,"tTtm":6.56,"vInd":4.27,"vTtm":4.23},{"d":"2019-02-01","tP":29.98,"vP":54.55,"y10":2.7,"tInd":6.8,"tTtm":6.7,"vInd":4.42,"vTtm":4.37},{"d":"2019-02-08","tP":29.53,"vP":53.95,"y10":2.63,"tInd":6.91,"tTtm":6.81,"vInd":4.47,"vTtm":4.42},{"d":"2019-02-15","tP":30.45,"vP":55.16,"y10":2.66,"tInd":6.7,"tTtm":6.6,"vInd":4.37,"vTtm":4.32},{"d":"2019-02-22","tP":31.13,"vP":56.92,"y10":2.65,"tInd":6.55,"tTtm":6.46,"vInd":4.23,"vTtm":4.19},{"d":"2019-03-01","tP":30.8,"vP":56.96,"y10":2.76,"tInd":6.62,"tTtm":6.53,"vInd":4.23,"vTtm":4.19},{"d":"2019-03-08","tP":29.94,"vP":56.53,"y10":2.62,"tInd":6.81,"tTtm":6.71,"vInd":4.26,"vTtm":4.22},{"d":"2019-03-15","tP":30.65,"vP":58.39,"y10":2.59,"tInd":6.66,"tTtm":6.56,"vInd":4.13,"vTtm":4.08},{"d":"2019-03-22","tP":31.05,"vP":59.76,"y10":2.44,"tInd":6.57,"tTtm":6.47,"vInd":4.03,"vTtm":3.99},{"d":"2019-03-29","tP":31.34,"vP":59.13,"y10":2.41,"tInd":6.51,"tTtm":6.41,"vInd":4.08,"vTtm":4.03},{"d":"2019-04-05","tP":32.33,"vP":59.09,"y10":2.5,"tInd":6.31,"tTtm":6.22,"vInd":4.08,"vTtm":4.04},{"d":"2019-04-12","tP":32.18,"vP":58.74,"y10":2.56,"tInd":6.34,"tTtm":6.28,"vInd":4.1,"vTtm":4.08},{"d":"2019-04-19","tP":32.01,"vP":58.04,"y10":2.57,"tInd":6.37,"tTtm":6.31,"vInd":4.15,"vTtm":4.13},{"d":"2019-04-26","tP":30.66,"vP":56.58,"y10":2.51,"tInd":6.65,"tTtm":6.59,"vInd":4.26,"vTtm":4.24},{"d":"2019-05-03","tP":30.68,"vP":57.24,"y10":2.54,"tInd":6.65,"tTtm":6.58,"vInd":4.21,"vTtm":4.19},{"d":"2019-05-10","tP":30.6,"vP":56.91,"y10":2.47,"tInd":6.67,"tTtm":6.6,"vInd":4.23,"vTtm":4.21},{"d":"2019-05-17","tP":31.78,"vP":58.09,"y10":2.39,"tInd":6.42,"tTtm":6.36,"vInd":4.15,"vTtm":4.13},{"d":"2019-05-24","tP":32.25,"vP":59.32,"y10":2.32,"tInd":6.33,"tTtm":6.26,"vInd":4.06,"vTtm":4.04},{"d":"2019-05-31","tP":30.56,"vP":54.35,"y10":2.14,"tInd":6.68,"tTtm":6.61,"vInd":4.43,"vTtm":4.41},{"d":"2019-06-07","tP":32.47,"vP":57.24,"y10":2.09,"tInd":6.28,"tTtm":6.22,"vInd":4.21,"vTtm":4.19},{"d":"2019-06-14","tP":32.33,"vP":58.28,"y10":2.09,"tInd":6.31,"tTtm":6.25,"vInd":4.14,"vTtm":4.11},{"d":"2019-06-21","tP":32.43,"vP":57.77,"y10":2.07,"tInd":6.29,"tTtm":6.23,"vInd":4.17,"vTtm":4.15},{"d":"2019-06-28","tP":33.49,"vP":57.13,"y10":2.0,"tInd":6.09,"tTtm":6.03,"vInd":4.22,"vTtm":4.2},{"d":"2019-07-05","tP":34.28,"vP":58.31,"y10":2.04,"tInd":5.95,"tTtm":5.89,"vInd":4.13,"vTtm":4.11},{"d":"2019-07-12","tP":33.63,"vP":57.19,"y10":2.12,"tInd":6.07,"tTtm":6.04,"vInd":4.21,"vTtm":4.21},{"d":"2019-07-19","tP":32.77,"vP":56.59,"y10":2.05,"tInd":6.23,"tTtm":6.2,"vInd":4.26,"vTtm":4.26},{"d":"2019-07-26","tP":34.13,"vP":57.08,"y10":2.08,"tInd":5.98,"tTtm":5.95,"vInd":4.22,"vTtm":4.22},{"d":"2019-08-02","tP":34.15,"vP":55.59,"y10":1.86,"tInd":5.97,"tTtm":5.94,"vInd":4.34,"vTtm":4.34},{"d":"2019-08-09","tP":34.52,"vP":55.78,"y10":1.74,"tInd":5.91,"tTtm":5.88,"vInd":4.32,"vTtm":4.32},{"d":"2019-08-16","tP":34.95,"vP":56.65,"y10":1.55,"tInd":5.84,"tTtm":5.81,"vInd":4.25,"vTtm":4.25},{"d":"2019-08-23","tP":34.8,"vP":55.92,"y10":1.52,"tInd":5.86,"tTtm":5.83,"vInd":4.31,"vTtm":4.31},{"d":"2019-08-30","tP":35.24,"vP":58.16,"y10":1.5,"tInd":5.79,"tTtm":5.76,"vInd":4.14,"vTtm":4.14},{"d":"2019-09-06","tP":36.23,"vP":59.06,"y10":1.55,"tInd":5.63,"tTtm":5.6,"vInd":4.08,"vTtm":4.08},{"d":"2019-09-13","tP":37.88,"vP":59.96,"y10":1.9,"tInd":5.38,"tTtm":5.36,"vInd":4.02,"vTtm":4.02},{"d":"2019-09-20","tP":37.88,"vP":60.29,"y10":1.74,"tInd":5.38,"tTtm":5.36,"vInd":4.0,"vTtm":4.0},{"d":"2019-09-27","tP":37.4,"vP":60.3,"y10":1.69,"tInd":5.45,"tTtm":5.43,"vInd":4.0,"vTtm":4.0},{"d":"2019-10-04","tP":37.48,"vP":59.9,"y10":1.52,"tInd":5.44,"tTtm":5.42,"vInd":4.02,"vTtm":4.02},{"d":"2019-10-11","tP":37.55,"vP":59.93,"y10":1.76,"tInd":5.43,"tTtm":5.43,"vInd":4.1,"vTtm":4.04},{"d":"2019-10-18","tP":38.44,"vP":61.05,"y10":1.76,"tInd":5.31,"tTtm":5.31,"vInd":4.03,"vTtm":3.97},{"d":"2019-10-25","tP":36.89,"vP":60.37,"y10":1.8,"tInd":5.53,"tTtm":5.53,"vInd":4.07,"vTtm":4.01},{"d":"2019-11-01","tP":38.92,"vP":60.37,"y10":1.73,"tInd":5.24,"tTtm":5.24,"vInd":4.07,"vTtm":4.01},{"d":"2019-11-08","tP":39.35,"vP":59.35,"y10":1.94,"tInd":5.18,"tTtm":5.18,"vInd":4.14,"vTtm":4.08},{"d":"2019-11-15","tP":39.47,"vP":59.51,"y10":1.84,"tInd":5.17,"tTtm":5.17,"vInd":4.13,"vTtm":4.07},{"d":"2019-11-22","tP":37.72,"vP":59.75,"y10":1.77,"tInd":5.41,"tTtm":5.41,"vInd":4.12,"vTtm":4.05},{"d":"2019-11-29","tP":37.35,"vP":60.24,"y10":1.78,"tInd":5.46,"tTtm":5.46,"vInd":4.08,"vTtm":4.02},{"d":"2019-12-06","tP":38.17,"vP":61.19,"y10":1.84,"tInd":5.34,"tTtm":5.34,"vInd":4.02,"vTtm":3.96},{"d":"2019-12-13","tP":38.23,"vP":60.81,"y10":1.82,"tInd":5.34,"tTtm":5.34,"vInd":4.05,"vTtm":3.98},{"d":"2019-12-20","tP":39.12,"vP":62.07,"y10":1.92,"tInd":5.21,"tTtm":5.21,"vInd":3.96,"vTtm":3.9},{"d":"2019-12-27","tP":39.21,"vP":61.53,"y10":1.88,"tInd":5.2,"tTtm":5.2,"vInd":4.0,"vTtm":3.94},{"d":"2020-01-03","tP":39.03,"vP":60.4,"y10":1.8,"tInd":5.23,"tTtm":5.23,"vInd":4.07,"vTtm":4.01},{"d":"2020-01-10","tP":38.54,"vP":58.99,"y10":1.83,"tInd":5.4,"tTtm":5.32,"vInd":4.17,"vTtm":4.13},{"d":"2020-01-17","tP":38.35,"vP":60.13,"y10":1.84,"tInd":5.42,"tTtm":5.34,"vInd":4.09,"vTtm":4.05},{"d":"2020-01-24","tP":38.47,"vP":60.28,"y10":1.7,"tInd":5.41,"tTtm":5.33,"vInd":4.08,"vTtm":4.04},{"d":"2020-01-31","tP":37.59,"vP":59.44,"y10":1.51,"tInd":5.53,"tTtm":5.45,"vInd":4.14,"vTtm":4.1},{"d":"2020-02-07","tP":38.42,"vP":59.94,"y10":1.59,"tInd":5.41,"tTtm":5.34,"vInd":4.1,"vTtm":4.06},{"d":"2020-02-14","tP":38.22,"vP":58.51,"y10":1.59,"tInd":5.44,"tTtm":5.36,"vInd":4.2,"vTtm":4.16},{"d":"2020-02-21","tP":38.52,"vP":58.2,"y10":1.46,"tInd":5.4,"tTtm":5.32,"vInd":4.23,"vTtm":4.18},{"d":"2020-02-28","tP":35.2,"vP":54.16,"y10":1.13,"tInd":5.91,"tTtm":5.82,"vInd":4.54,"vTtm":4.5},{"d":"2020-03-06","tP":37.01,"vP":56.87,"y10":0.74,"tInd":5.62,"tTtm":5.54,"vInd":4.33,"vTtm":4.28},{"d":"2020-03-13","tP":34.45,"vP":54.17,"y10":0.94,"tInd":6.04,"tTtm":5.95,"vInd":4.54,"vTtm":4.5},{"d":"2020-03-20","tP":28.43,"vP":51.8,"y10":0.92,"tInd":7.32,"tTtm":7.21,"vInd":4.75,"vTtm":4.7},{"d":"2020-03-27","tP":29.82,"vP":52.77,"y10":0.72,"tInd":6.98,"tTtm":6.87,"vInd":4.66,"vTtm":4.61},{"d":"2020-04-03","tP":27.44,"vP":54.7,"y10":0.62,"tInd":7.58,"tTtm":7.47,"vInd":4.5,"vTtm":4.45},{"d":"2020-04-10","tP":30.71,"vP":57.44,"y10":0.73,"tInd":6.77,"tTtm":6.71,"vInd":4.28,"vTtm":4.26},{"d":"2020-04-17","tP":31.21,"vP":58.46,"y10":0.65,"tInd":6.66,"tTtm":6.6,"vInd":4.21,"vTtm":4.19},{"d":"2020-04-24","tP":29.69,"vP":57.93,"y10":0.6,"tInd":7.01,"tTtm":6.94,"vInd":4.25,"vTtm":4.22},{"d":"2020-05-01","tP":29.88,"vP":56.83,"y10":0.64,"tInd":6.96,"tTtm":6.89,"vInd":4.33,"vTtm":4.31},{"d":"2020-05-08","tP":29.77,"vP":57.0,"y10":0.69,"tInd":6.99,"tTtm":6.92,"vInd":4.32,"vTtm":4.29},{"d":"2020-05-15","tP":28.29,"vP":54.71,"y10":0.64,"tInd":7.35,"tTtm":7.28,"vInd":4.5,"vTtm":4.47},{"d":"2020-05-22","tP":29.86,"vP":54.1,"y10":0.66,"tInd":6.97,"tTtm":6.9,"vInd":4.55,"vTtm":4.52},{"d":"2020-05-29","tP":30.84,"vP":57.38,"y10":0.65,"tInd":6.74,"tTtm":6.68,"vInd":4.29,"vTtm":4.27},{"d":"2020-06-05","tP":32.75,"vP":57.74,"y10":0.91,"tInd":6.35,"tTtm":6.29,"vInd":4.26,"vTtm":4.24},{"d":"2020-06-12","tP":30.48,"vP":56.53,"y10":0.71,"tInd":6.82,"tTtm":6.76,"vInd":4.35,"vTtm":4.33},{"d":"2020-06-19","tP":30.29,"vP":56.16,"y10":0.7,"tInd":6.87,"tTtm":6.8,"vInd":4.38,"vTtm":4.36},{"d":"2020-06-26","tP":29.06,"vP":53.16,"y10":0.64,"tInd":7.16,"tTtm":7.09,"vInd":4.63,"vTtm":4.6},{"d":"2020-07-03","tP":30.06,"vP":54.79,"y10":0.68,"tInd":6.92,"tTtm":6.85,"vInd":4.49,"vTtm":4.47},{"d":"2020-07-10","tP":30.11,"vP":54.49,"y10":0.65,"tInd":6.91,"tTtm":6.87,"vInd":4.51,"vTtm":4.51},{"d":"2020-07-17","tP":30.23,"vP":56.3,"y10":0.64,"tInd":6.88,"tTtm":6.85,"vInd":4.37,"vTtm":4.37},{"d":"2020-07-24","tP":29.55,"vP":56.85,"y10":0.59,"tInd":7.04,"tTtm":7.01,"vInd":4.33,"vTtm":4.33},{"d":"2020-07-31","tP":29.56,"vP":57.48,"y10":0.55,"tInd":7.04,"tTtm":7.0,"vInd":4.28,"vTtm":4.28},{"d":"2020-08-07","tP":30.0,"vP":58.53,"y10":0.57,"tInd":6.93,"tTtm":6.9,"vInd":4.2,"vTtm":4.2},{"d":"2020-08-14","tP":29.99,"vP":58.79,"y10":0.71,"tInd":6.94,"tTtm":6.9,"vInd":4.18,"vTtm":4.18},{"d":"2020-08-21","tP":29.67,"vP":58.99,"y10":0.64,"tInd":7.01,"tTtm":6.98,"vInd":4.17,"vTtm":4.17},{"d":"2020-08-28","tP":30.02,"vP":59.26,"y10":0.74,"tInd":6.93,"tTtm":6.9,"vInd":4.15,"vTtm":4.15},{"d":"2020-09-04","tP":29.4,"vP":60.48,"y10":0.72,"tInd":7.07,"tTtm":7.04,"vInd":4.07,"vTtm":4.07},{"d":"2020-09-11","tP":28.98,"vP":59.79,"y10":0.67,"tInd":7.18,"tTtm":7.14,"vInd":4.11,"vTtm":4.11},{"d":"2020-09-18","tP":28.91,"vP":60.35,"y10":0.7,"tInd":7.19,"tTtm":7.16,"vInd":4.08,"vTtm":4.08},{"d":"2020-09-25","tP":28.02,"vP":59.39,"y10":0.66,"tInd":7.42,"tTtm":7.39,"vInd":4.14,"vTtm":4.14},{"d":"2020-10-02","tP":28.66,"vP":59.24,"y10":0.7,"tInd":7.26,"tTtm":7.22,"vInd":4.15,"vTtm":4.15},{"d":"2020-10-09","tP":28.3,"vP":59.33,"y10":0.79,"tInd":7.35,"tTtm":7.35,"vInd":4.23,"vTtm":4.17},{"d":"2020-10-16","tP":27.31,"vP":58.05,"y10":0.76,"tInd":7.62,"tTtm":7.62,"vInd":4.32,"vTtm":4.26},{"d":"2020-10-23","tP":27.8,"vP":57.96,"y10":0.85,"tInd":7.48,"tTtm":7.48,"vInd":4.33,"vTtm":4.27},{"d":"2020-10-30","tP":27.0,"vP":56.99,"y10":0.88,"tInd":7.7,"tTtm":7.7,"vInd":4.4,"vTtm":4.34},{"d":"2020-11-06","tP":27.42,"vP":58.53,"y10":0.83,"tInd":7.59,"tTtm":7.59,"vInd":4.29,"vTtm":4.22},{"d":"2020-11-13","tP":28.89,"vP":61.06,"y10":0.89,"tInd":7.2,"tTtm":7.2,"vInd":4.11,"vTtm":4.05},{"d":"2020-11-20","tP":28.3,"vP":60.04,"y10":0.83,"tInd":7.35,"tTtm":7.35,"vInd":4.18,"vTtm":4.12},{"d":"2020-11-27","tP":29.01,"vP":60.58,"y10":0.84,"tInd":7.17,"tTtm":7.17,"vInd":4.14,"vTtm":4.08},{"d":"2020-12-04","tP":29.52,"vP":61.55,"y10":0.97,"tInd":7.05,"tTtm":7.05,"vInd":4.08,"vTtm":4.02},{"d":"2020-12-11","tP":30.99,"vP":60.35,"y10":0.9,"tInd":6.71,"tTtm":6.71,"vInd":4.16,"vTtm":4.1},{"d":"2020-12-18","tP":29.38,"vP":60.46,"y10":0.95,"tInd":7.08,"tTtm":7.08,"vInd":4.15,"vTtm":4.09},{"d":"2020-12-25","tP":28.67,"vP":58.84,"y10":0.94,"tInd":7.25,"tTtm":7.25,"vInd":4.27,"vTtm":4.2},{"d":"2021-01-01","tP":28.74,"vP":58.75,"y10":0.93,"tInd":7.24,"tTtm":7.24,"vInd":4.27,"vTtm":4.21},{"d":"2021-01-08","tP":29.0,"vP":57.8,"y10":1.13,"tInd":7.17,"tTtm":7.17,"vInd":4.34,"vTtm":4.3},{"d":"2021-01-15","tP":29.15,"vP":57.38,"y10":1.11,"tInd":7.14,"tTtm":7.14,"vInd":4.37,"vTtm":4.33},{"d":"2021-01-22","tP":28.91,"vP":57.47,"y10":1.1,"tInd":7.19,"tTtm":7.19,"vInd":4.37,"vTtm":4.32},{"d":"2021-01-29","tP":28.61,"vP":54.75,"y10":1.11,"tInd":7.27,"tTtm":7.27,"vInd":4.58,"vTtm":4.54},{"d":"2021-02-05","tP":28.91,"vP":55.32,"y10":1.19,"tInd":7.19,"tTtm":7.19,"vInd":4.54,"vTtm":4.49},{"d":"2021-02-12","tP":28.78,"vP":54.2,"y10":1.2,"tInd":7.23,"tTtm":7.23,"vInd":4.63,"vTtm":4.58},{"d":"2021-02-19","tP":28.98,"vP":56.45,"y10":1.34,"tInd":7.18,"tTtm":7.18,"vInd":4.45,"vTtm":4.4},{"d":"2021-02-26","tP":27.87,"vP":55.3,"y10":1.44,"tInd":7.46,"tTtm":7.46,"vInd":4.54,"vTtm":4.49},{"d":"2021-03-05","tP":29.6,"vP":56.0,"y10":1.56,"tInd":7.03,"tTtm":7.03,"vInd":4.48,"vTtm":4.44},{"d":"2021-03-12","tP":29.79,"vP":55.63,"y10":1.64,"tInd":6.98,"tTtm":6.98,"vInd":4.51,"vTtm":4.47},{"d":"2021-03-19","tP":29.74,"vP":56.24,"y10":1.74,"tInd":6.99,"tTtm":6.99,"vInd":4.46,"vTtm":4.42},{"d":"2021-03-26","tP":30.29,"vP":58.18,"y10":1.67,"tInd":6.87,"tTtm":6.87,"vInd":4.31,"vTtm":4.27},{"d":"2021-04-02","tP":30.45,"vP":58.3,"y10":1.72,"tInd":6.83,"tTtm":6.83,"vInd":4.31,"vTtm":4.26},{"d":"2021-04-09","tP":30.02,"vP":57.49,"y10":1.67,"tInd":6.93,"tTtm":6.93,"vInd":4.37,"vTtm":4.34},{"d":"2021-04-16","tP":29.93,"vP":58.28,"y10":1.59,"tInd":6.95,"tTtm":6.95,"vInd":4.31,"vTtm":4.29},{"d":"2021-04-23","tP":31.38,"vP":57.3,"y10":1.58,"tInd":6.63,"tTtm":6.63,"vInd":4.38,"vTtm":4.36},{"d":"2021-04-30","tP":31.39,"vP":57.79,"y10":1.65,"tInd":6.63,"tTtm":6.63,"vInd":4.34,"vTtm":4.32},{"d":"2021-05-07","tP":32.14,"vP":58.72,"y10":1.6,"tInd":6.47,"tTtm":6.47,"vInd":4.27,"vTtm":4.25},{"d":"2021-05-14","tP":32.22,"vP":58.69,"y10":1.63,"tInd":6.46,"tTtm":6.46,"vInd":4.28,"vTtm":4.26},{"d":"2021-05-21","tP":29.99,"vP":56.91,"y10":1.63,"tInd":6.94,"tTtm":6.94,"vInd":4.41,"vTtm":4.39},{"d":"2021-05-28","tP":29.41,"vP":56.49,"y10":1.58,"tInd":7.07,"tTtm":7.07,"vInd":4.44,"vTtm":4.42},{"d":"2021-06-04","tP":29.25,"vP":57.3,"y10":1.56,"tInd":7.11,"tTtm":7.11,"vInd":4.38,"vTtm":4.36},{"d":"2021-06-11","tP":29.3,"vP":57.33,"y10":1.47,"tInd":7.1,"tTtm":7.1,"vInd":4.38,"vTtm":4.36},{"d":"2021-06-18","tP":28.63,"vP":55.82,"y10":1.45,"tInd":7.26,"tTtm":7.26,"vInd":4.5,"vTtm":4.47},{"d":"2021-06-25","tP":28.87,"vP":56.38,"y10":1.54,"tInd":7.2,"tTtm":7.2,"vInd":4.45,"vTtm":4.43},{"d":"2021-07-02","tP":29.21,"vP":56.44,"y10":1.44,"tInd":7.12,"tTtm":7.12,"vInd":4.45,"vTtm":4.43},{"d":"2021-07-09","tP":28.43,"vP":56.07,"y10":1.37,"tInd":7.32,"tTtm":7.32,"vInd":4.48,"vTtm":4.48},{"d":"2021-07-16","tP":28.32,"vP":56.46,"y10":1.31,"tInd":7.34,"tTtm":7.34,"vInd":4.45,"vTtm":4.45},{"d":"2021-07-23","tP":28.13,"vP":55.88,"y10":1.3,"tInd":7.39,"tTtm":7.39,"vInd":4.49,"vTtm":4.49},{"d":"2021-07-30","tP":28.03,"vP":55.78,"y10":1.24,"tInd":7.42,"tTtm":7.42,"vInd":4.5,"vTtm":4.5},{"d":"2021-08-06","tP":27.94,"vP":55.22,"y10":1.31,"tInd":7.44,"tTtm":7.44,"vInd":4.55,"vTtm":4.55},{"d":"2021-08-13","tP":28.17,"vP":55.87,"y10":1.29,"tInd":7.38,"tTtm":7.38,"vInd":4.49,"vTtm":4.49},{"d":"2021-08-20","tP":27.55,"vP":55.52,"y10":1.26,"tInd":7.55,"tTtm":7.55,"vInd":4.52,"vTtm":4.52},{"d":"2021-08-27","tP":27.11,"vP":54.77,"y10":1.31,"tInd":7.67,"tTtm":7.67,"vInd":4.58,"vTtm":4.58},{"d":"2021-09-03","tP":27.54,"vP":55.43,"y10":1.33,"tInd":7.55,"tTtm":7.55,"vInd":4.53,"vTtm":4.53},{"d":"2021-09-10","tP":27.16,"vP":54.23,"y10":1.35,"tInd":7.66,"tTtm":7.66,"vInd":4.63,"vTtm":4.63},{"d":"2021-09-17","tP":27.51,"vP":54.28,"y10":1.37,"tInd":7.56,"tTtm":7.56,"vInd":4.62,"vTtm":4.62},{"d":"2021-09-24","tP":27.11,"vP":54.37,"y10":1.47,"tInd":7.67,"tTtm":7.67,"vInd":4.62,"vTtm":4.62},{"d":"2021-10-01","tP":27.14,"vP":54.3,"y10":1.48,"tInd":7.66,"tTtm":7.66,"vInd":4.62,"vTtm":4.62},{"d":"2021-10-08","tP":26.75,"vP":53.24,"y10":1.61,"tInd":7.78,"tTtm":7.78,"vInd":4.81,"vTtm":4.74},{"d":"2021-10-15","tP":25.68,"vP":52.27,"y10":1.59,"tInd":8.1,"tTtm":8.1,"vInd":4.9,"vTtm":4.83},{"d":"2021-10-22","tP":25.47,"vP":52.93,"y10":1.66,"tInd":8.17,"tTtm":8.17,"vInd":4.84,"vTtm":4.77},{"d":"2021-10-29","tP":25.24,"vP":52.99,"y10":1.55,"tInd":8.24,"tTtm":8.24,"vInd":4.83,"vTtm":4.76},{"d":"2021-11-05","tP":25.08,"vP":52.24,"y10":1.45,"tInd":8.29,"tTtm":8.29,"vInd":4.9,"vTtm":4.83},{"d":"2021-11-12","tP":24.92,"vP":52.34,"y10":1.58,"tInd":8.35,"tTtm":8.35,"vInd":4.89,"vTtm":4.82},{"d":"2021-11-19","tP":24.11,"vP":50.86,"y10":1.54,"tInd":8.63,"tTtm":8.63,"vInd":5.03,"vTtm":4.96},{"d":"2021-11-26","tP":24.2,"vP":51.8,"y10":1.48,"tInd":8.59,"tTtm":8.59,"vInd":4.94,"vTtm":4.87},{"d":"2021-12-03","tP":23.44,"vP":51.42,"y10":1.35,"tInd":8.87,"tTtm":8.87,"vInd":4.98,"vTtm":4.91},{"d":"2021-12-10","tP":22.82,"vP":50.19,"y10":1.48,"tInd":9.11,"tTtm":9.11,"vInd":5.1,"vTtm":5.03},{"d":"2021-12-17","tP":23.76,"vP":53.17,"y10":1.41,"tInd":8.75,"tTtm":8.75,"vInd":4.81,"vTtm":4.74},{"d":"2021-12-24","tP":24.85,"vP":52.68,"y10":1.5,"tInd":8.37,"tTtm":8.37,"vInd":4.86,"vTtm":4.79},{"d":"2021-12-31","tP":24.58,"vP":51.96,"y10":1.52,"tInd":8.46,"tTtm":8.46,"vInd":4.93,"vTtm":4.85},{"d":"2022-01-07","tP":26.27,"vP":54.24,"y10":1.76,"tInd":7.92,"tTtm":9.9,"vInd":4.72,"vTtm":4.67},{"d":"2022-01-14","tP":27.16,"vP":53.28,"y10":1.78,"tInd":7.66,"tTtm":7.66,"vInd":4.8,"vTtm":4.76},{"d":"2022-01-21","tP":26.59,"vP":53.16,"y10":1.75,"tInd":7.82,"tTtm":7.82,"vInd":4.82,"vTtm":4.77},{"d":"2022-01-28","tP":25.19,"vP":52.9,"y10":1.78,"tInd":8.26,"tTtm":8.26,"vInd":4.84,"vTtm":4.79},{"d":"2022-02-04","tP":24.06,"vP":53.31,"y10":1.93,"tInd":8.64,"tTtm":8.64,"vInd":4.8,"vTtm":4.76},{"d":"2022-02-11","tP":24.11,"vP":53.32,"y10":1.92,"tInd":8.63,"tTtm":8.63,"vInd":4.8,"vTtm":4.75},{"d":"2022-02-18","tP":23.85,"vP":53.83,"y10":1.92,"tInd":8.72,"tTtm":8.72,"vInd":4.76,"vTtm":4.71},{"d":"2022-02-25","tP":23.89,"vP":54.12,"y10":1.97,"tInd":8.71,"tTtm":8.71,"vInd":4.73,"vTtm":4.68},{"d":"2022-03-04","tP":23.85,"vP":55.11,"y10":1.74,"tInd":8.72,"tTtm":8.72,"vInd":4.65,"vTtm":4.6},{"d":"2022-03-11","tP":23.17,"vP":53.04,"y10":2.0,"tInd":8.98,"tTtm":8.98,"vInd":4.83,"vTtm":4.78},{"d":"2022-03-18","tP":23.2,"vP":50.8,"y10":2.14,"tInd":8.96,"tTtm":8.96,"vInd":5.04,"vTtm":4.99},{"d":"2022-03-25","tP":23.82,"vP":51.28,"y10":2.48,"tInd":8.73,"tTtm":8.73,"vInd":4.99,"vTtm":4.94},{"d":"2022-04-01","tP":23.96,"vP":52.12,"y10":2.39,"tInd":8.68,"tTtm":8.68,"vInd":4.91,"vTtm":4.86},{"d":"2022-04-08","tP":24.12,"vP":53.53,"y10":2.72,"tInd":8.62,"tTtm":6.47,"vInd":4.78,"vTtm":4.76},{"d":"2022-04-15","tP":19.54,"vP":53.83,"y10":2.83,"tInd":5.68,"tTtm":9.4,"vInd":4.76,"vTtm":4.73},{"d":"2022-04-22","tP":19.52,"vP":51.91,"y10":2.9,"tInd":5.69,"tTtm":9.41,"vInd":4.93,"vTtm":4.91},{"d":"2022-04-29","tP":18.86,"vP":46.3,"y10":2.89,"tInd":5.89,"tTtm":9.74,"vInd":5.53,"vTtm":5.5},{"d":"2022-05-06","tP":20.03,"vP":48.27,"y10":3.12,"tInd":5.54,"tTtm":9.17,"vInd":5.3,"vTtm":5.28},{"d":"2022-05-13","tP":19.84,"vP":48.18,"y10":2.93,"tInd":5.59,"tTtm":9.26,"vInd":5.31,"vTtm":5.29},{"d":"2022-05-20","tP":20.4,"vP":49.53,"y10":2.78,"tInd":5.44,"tTtm":9.01,"vInd":5.17,"vTtm":5.14},{"d":"2022-05-27","tP":21.29,"vP":51.4,"y10":2.74,"tInd":5.21,"tTtm":8.63,"vInd":4.98,"vTtm":4.96},{"d":"2022-06-03","tP":20.9,"vP":50.81,"y10":2.96,"tInd":5.31,"tTtm":8.79,"vInd":5.04,"vTtm":5.01},{"d":"2022-06-10","tP":20.69,"vP":50.82,"y10":3.15,"tInd":5.36,"tTtm":8.88,"vInd":5.04,"vTtm":5.01},{"d":"2022-06-17","tP":19.38,"vP":49.03,"y10":3.25,"tInd":5.73,"tTtm":9.48,"vInd":5.22,"vTtm":5.2},{"d":"2022-06-24","tP":20.99,"vP":50.96,"y10":3.13,"tInd":5.29,"tTtm":8.75,"vInd":5.02,"vTtm":5.0},{"d":"2022-07-01","tP":21.31,"vP":51.64,"y10":2.88,"tInd":5.21,"tTtm":8.62,"vInd":4.96,"vTtm":4.93},{"d":"2022-07-08","tP":20.8,"vP":50.49,"y10":3.09,"tInd":5.34,"tTtm":7.67,"vInd":5.07,"vTtm":5.07},{"d":"2022-07-15","tP":20.57,"vP":51.02,"y10":2.93,"tInd":5.4,"tTtm":7.75,"vInd":5.02,"vTtm":5.02},{"d":"2022-07-22","tP":18.4,"vP":44.45,"y10":2.77,"tInd":6.03,"tTtm":8.67,"vInd":5.76,"vTtm":5.76},{"d":"2022-07-29","tP":18.78,"vP":46.19,"y10":2.67,"tInd":5.91,"tTtm":8.49,"vInd":5.54,"vTtm":5.54},{"d":"2022-08-05","tP":18.35,"vP":44.95,"y10":2.83,"tInd":6.05,"tTtm":8.69,"vInd":5.7,"vTtm":5.7},{"d":"2022-08-12","tP":18.27,"vP":45.15,"y10":2.84,"tInd":6.08,"tTtm":8.73,"vInd":5.67,"vTtm":5.67},{"d":"2022-08-19","tP":18.43,"vP":44.42,"y10":2.98,"tInd":6.02,"tTtm":8.65,"vInd":5.76,"vTtm":5.76},{"d":"2022-08-26","tP":17.89,"vP":43.25,"y10":3.04,"tInd":6.2,"tTtm":8.92,"vInd":5.92,"vTtm":5.92},{"d":"2022-09-02","tP":17.19,"vP":41.3,"y10":3.2,"tInd":6.46,"tTtm":9.28,"vInd":6.2,"vTtm":6.2},{"d":"2022-09-09","tP":17.03,"vP":42.24,"y10":3.33,"tInd":6.52,"tTtm":9.37,"vInd":6.06,"vTtm":6.06},{"d":"2022-09-16","tP":16.74,"vP":41.25,"y10":3.45,"tInd":6.63,"tTtm":9.53,"vInd":6.21,"vTtm":6.21},{"d":"2022-09-23","tP":16.01,"vP":39.52,"y10":3.69,"tInd":6.93,"tTtm":9.96,"vInd":6.48,"vTtm":6.48},{"d":"2022-09-30","tP":15.34,"vP":37.97,"y10":3.83,"tInd":7.24,"tTtm":10.4,"vInd":6.74,"vTtm":6.74},{"d":"2022-10-07","tP":14.94,"vP":36.85,"y10":3.89,"tInd":7.43,"tTtm":9.05,"vInd":7.08,"vTtm":6.98},{"d":"2022-10-14","tP":14.99,"vP":36.38,"y10":4.0,"tInd":7.4,"tTtm":9.02,"vInd":7.17,"vTtm":7.07},{"d":"2022-10-21","tP":17.1,"vP":35.35,"y10":4.21,"tInd":6.49,"tTtm":7.91,"vInd":7.38,"vTtm":7.28},{"d":"2022-10-28","tP":18.48,"vP":37.67,"y10":4.02,"tInd":6.01,"tTtm":7.32,"vInd":6.93,"vTtm":6.83},{"d":"2022-11-04","tP":18.32,"vP":37.24,"y10":4.17,"tInd":6.06,"tTtm":7.38,"vInd":7.01,"vTtm":6.91},{"d":"2022-11-11","tP":19.05,"vP":38.3,"y10":3.82,"tInd":5.83,"tTtm":7.1,"vInd":6.81,"vTtm":6.72},{"d":"2022-11-18","tP":18.97,"vP":38.55,"y10":3.82,"tInd":5.85,"tTtm":7.13,"vInd":6.77,"vTtm":6.67},{"d":"2022-11-25","tP":19.12,"vP":39.02,"y10":3.68,"tInd":5.81,"tTtm":7.07,"vInd":6.69,"vTtm":6.59},{"d":"2022-12-02","tP":19.02,"vP":38.18,"y10":3.51,"tInd":5.84,"tTtm":7.11,"vInd":6.84,"vTtm":6.74},{"d":"2022-12-09","tP":19.09,"vP":37.4,"y10":3.57,"tInd":5.81,"tTtm":7.08,"vInd":6.98,"vTtm":6.88},{"d":"2022-12-16","tP":18.49,"vP":37.12,"y10":3.48,"tInd":6.0,"tTtm":7.31,"vInd":7.03,"vTtm":6.93},{"d":"2022-12-23","tP":18.31,"vP":38.41,"y10":3.75,"tInd":6.06,"tTtm":7.39,"vInd":6.8,"vTtm":6.7},{"d":"2022-12-30","tP":18.41,"vP":39.4,"y10":3.88,"tInd":6.03,"tTtm":7.35,"vInd":6.62,"vTtm":6.53},{"d":"2023-01-06","tP":19.53,"vP":42.19,"y10":3.55,"tInd":5.68,"tTtm":6.93,"vInd":6.19,"vTtm":6.1},{"d":"2023-01-13","tP":19.55,"vP":41.86,"y10":3.49,"tInd":5.68,"tTtm":5.68,"vInd":6.24,"vTtm":6.18},{"d":"2023-01-20","tP":19.23,"vP":40.0,"y10":3.48,"tInd":5.77,"tTtm":5.77,"vInd":6.53,"vTtm":6.46},{"d":"2023-01-27","tP":19.95,"vP":40.64,"y10":3.52,"tInd":5.56,"tTtm":5.56,"vInd":6.42,"vTtm":6.36},{"d":"2023-02-03","tP":19.83,"vP":41.51,"y10":3.53,"tInd":5.6,"tTtm":5.6,"vInd":6.29,"vTtm":6.23},{"d":"2023-02-10","tP":19.07,"vP":40.01,"y10":3.74,"tInd":5.82,"tTtm":5.82,"vInd":6.52,"vTtm":6.46},{"d":"2023-02-17","tP":19.44,"vP":40.22,"y10":3.82,"tInd":5.71,"tTtm":5.71,"vInd":6.49,"vTtm":6.43},{"d":"2023-02-24","tP":19.24,"vP":38.74,"y10":3.95,"tInd":5.77,"tTtm":5.77,"vInd":6.74,"vTtm":6.67},{"d":"2023-03-03","tP":18.81,"vP":38.26,"y10":3.97,"tInd":5.9,"tTtm":5.9,"vInd":6.82,"vTtm":6.76},{"d":"2023-03-10","tP":18.43,"vP":36.68,"y10":3.7,"tInd":6.02,"tTtm":6.02,"vInd":7.12,"vTtm":7.05},{"d":"2023-03-17","tP":18.13,"vP":36.79,"y10":3.39,"tInd":6.12,"tTtm":6.12,"vInd":7.09,"vTtm":7.03},{"d":"2023-03-24","tP":18.61,"vP":37.66,"y10":3.38,"tInd":5.96,"tTtm":5.96,"vInd":6.93,"vTtm":6.86},{"d":"2023-03-31","tP":19.25,"vP":38.89,"y10":3.48,"tInd":5.77,"tTtm":5.77,"vInd":6.71,"vTtm":6.65},{"d":"2023-04-07","tP":19.65,"vP":39.48,"y10":3.39,"tInd":5.65,"tTtm":7.06,"vInd":6.61,"vTtm":6.58},{"d":"2023-04-14","tP":19.93,"vP":39.22,"y10":3.52,"tInd":5.57,"tTtm":5.57,"vInd":6.65,"vTtm":6.62},{"d":"2023-04-21","tP":18.22,"vP":37.32,"y10":3.57,"tInd":6.09,"tTtm":6.09,"vInd":6.99,"vTtm":6.96},{"d":"2023-04-28","tP":17.67,"vP":38.83,"y10":3.44,"tInd":6.28,"tTtm":6.28,"vInd":6.72,"vTtm":6.69},{"d":"2023-05-05","tP":17.13,"vP":37.83,"y10":3.44,"tInd":6.48,"tTtm":6.48,"vInd":6.9,"vTtm":6.87},{"d":"2023-05-12","tP":17.03,"vP":37.59,"y10":3.46,"tInd":6.52,"tTtm":6.52,"vInd":6.94,"vTtm":6.91},{"d":"2023-05-19","tP":16.31,"vP":36.05,"y10":3.7,"tInd":6.81,"tTtm":6.81,"vInd":7.24,"vTtm":7.21},{"d":"2023-05-26","tP":15.5,"vP":35.0,"y10":3.8,"tInd":7.16,"tTtm":7.16,"vInd":7.46,"vTtm":7.42},{"d":"2023-06-02","tP":15.21,"vP":34.58,"y10":3.69,"tInd":7.3,"tTtm":7.3,"vInd":7.55,"vTtm":7.51},{"d":"2023-06-09","tP":15.95,"vP":35.47,"y10":3.75,"tInd":6.96,"tTtm":6.96,"vInd":7.36,"vTtm":7.32},{"d":"2023-06-16","tP":16.06,"vP":36.46,"y10":3.77,"tInd":6.91,"tTtm":6.91,"vInd":7.16,"vTtm":7.12},{"d":"2023-06-23","tP":15.45,"vP":35.51,"y10":3.74,"tInd":7.18,"tTtm":7.18,"vInd":7.35,"vTtm":7.31},{"d":"2023-06-30","tP":15.95,"vP":37.19,"y10":3.81,"tInd":6.96,"tTtm":6.96,"vInd":7.02,"vTtm":6.98},{"d":"2023-07-07","tP":15.61,"vP":35.9,"y10":4.06,"tInd":7.11,"tTtm":8.89,"vInd":7.27,"vTtm":7.27},{"d":"2023-07-14","tP":14.5,"vP":34.01,"y10":3.83,"tInd":7.66,"tTtm":7.66,"vInd":7.67,"vTtm":7.67},{"d":"2023-07-21","tP":14.76,"vP":33.88,"y10":3.84,"tInd":7.52,"tTtm":7.52,"vInd":7.7,"vTtm":7.7},{"d":"2023-07-28","tP":14.45,"vP":34.03,"y10":3.96,"tInd":7.68,"tTtm":7.68,"vInd":7.67,"vTtm":7.67},{"d":"2023-08-04","tP":14.0,"vP":32.62,"y10":4.05,"tInd":7.93,"tTtm":7.93,"vInd":8.0,"vTtm":8.0},{"d":"2023-08-11","tP":14.37,"vP":33.36,"y10":4.16,"tInd":7.72,"tTtm":7.72,"vInd":7.82,"vTtm":7.82},{"d":"2023-08-18","tP":14.05,"vP":33.18,"y10":4.26,"tInd":7.9,"tTtm":7.9,"vInd":7.87,"vTtm":7.87},{"d":"2023-08-25","tP":14.11,"vP":33.35,"y10":4.25,"tInd":7.87,"tTtm":7.87,"vInd":7.83,"vTtm":7.83},{"d":"2023-09-01","tP":14.65,"vP":34.86,"y10":4.18,"tInd":7.58,"tTtm":7.58,"vInd":7.49,"vTtm":7.49},{"d":"2023-09-08","tP":14.4,"vP":33.45,"y10":4.26,"tInd":7.71,"tTtm":7.71,"vInd":7.8,"vTtm":7.8},{"d":"2023-09-15","tP":15.23,"vP":33.79,"y10":4.33,"tInd":7.29,"tTtm":7.29,"vInd":7.72,"vTtm":7.72},{"d":"2023-09-22","tP":15.12,"vP":33.28,"y10":4.44,"tInd":7.34,"tTtm":7.34,"vInd":7.84,"vTtm":7.84},{"d":"2023-09-29","tP":15.02,"vP":32.41,"y10":4.59,"tInd":7.39,"tTtm":7.39,"vInd":8.05,"vTtm":8.05},{"d":"2023-10-06","tP":14.45,"vP":30.85,"y10":4.78,"tInd":7.68,"tTtm":7.68,"vInd":8.62,"vTtm":8.5},{"d":"2023-10-13","tP":14.36,"vP":30.67,"y10":4.63,"tInd":7.73,"tTtm":7.73,"vInd":8.67,"vTtm":8.55},{"d":"2023-10-20","tP":15.38,"vP":31.57,"y10":4.93,"tInd":7.22,"tTtm":7.22,"vInd":8.43,"vTtm":8.31},{"d":"2023-10-27","tP":14.82,"vP":33.44,"y10":4.84,"tInd":7.49,"tTtm":7.49,"vInd":7.95,"vTtm":7.84},{"d":"2023-11-03","tP":15.88,"vP":36.02,"y10":4.57,"tInd":6.99,"tTtm":6.99,"vInd":7.38,"vTtm":7.28},{"d":"2023-11-10","tP":15.64,"vP":35.71,"y10":4.61,"tInd":7.1,"tTtm":7.1,"vInd":7.45,"vTtm":7.34},{"d":"2023-11-17","tP":15.9,"vP":36.23,"y10":4.44,"tInd":6.98,"tTtm":6.98,"vInd":7.34,"vTtm":7.24},{"d":"2023-11-24","tP":16.21,"vP":37.41,"y10":4.47,"tInd":6.85,"tTtm":6.85,"vInd":7.11,"vTtm":7.01},{"d":"2023-12-01","tP":16.76,"vP":38.58,"y10":4.22,"tInd":6.62,"tTtm":6.62,"vInd":6.89,"vTtm":6.8},{"d":"2023-12-08","tP":16.92,"vP":38.25,"y10":4.23,"tInd":6.56,"tTtm":6.56,"vInd":6.95,"vTtm":6.86},{"d":"2023-12-15","tP":16.52,"vP":37.37,"y10":3.91,"tInd":6.72,"tTtm":6.72,"vInd":7.12,"vTtm":7.02},{"d":"2023-12-22","tP":16.55,"vP":37.49,"y10":3.9,"tInd":6.71,"tTtm":6.71,"vInd":7.1,"vTtm":7.0},{"d":"2023-12-29","tP":16.78,"vP":37.7,"y10":3.88,"tInd":6.62,"tTtm":6.62,"vInd":7.06,"vTtm":6.96},{"d":"2024-01-05","tP":17.47,"vP":40.2,"y10":4.05,"tInd":6.35,"tTtm":6.35,"vInd":6.62,"vTtm":6.52},{"d":"2024-01-12","tP":16.48,"vP":38.56,"y10":3.96,"tInd":6.74,"tTtm":6.74,"vInd":6.9,"vTtm":6.83},{"d":"2024-01-19","tP":16.67,"vP":39.33,"y10":4.15,"tInd":6.66,"tTtm":6.66,"vInd":6.76,"vTtm":6.7},{"d":"2024-01-26","tP":17.29,"vP":42.4,"y10":4.15,"tInd":6.42,"tTtm":6.42,"vInd":6.27,"vTtm":6.21},{"d":"2024-02-02","tP":17.83,"vP":42.13,"y10":4.03,"tInd":6.23,"tTtm":6.23,"vInd":6.31,"vTtm":6.25},{"d":"2024-02-09","tP":16.84,"vP":39.72,"y10":4.17,"tInd":6.59,"tTtm":6.59,"vInd":6.7,"vTtm":6.63},{"d":"2024-02-16","tP":16.97,"vP":40.49,"y10":4.3,"tInd":6.54,"tTtm":6.54,"vInd":6.57,"vTtm":6.51},{"d":"2024-02-23","tP":16.8,"vP":40.66,"y10":4.26,"tInd":6.61,"tTtm":6.61,"vInd":6.54,"vTtm":6.48},{"d":"2024-03-01","tP":16.98,"vP":40.2,"y10":4.19,"tInd":6.54,"tTtm":6.54,"vInd":6.62,"vTtm":6.55},{"d":"2024-03-08","tP":17.2,"vP":39.51,"y10":4.09,"tInd":6.45,"tTtm":6.45,"vInd":6.73,"vTtm":6.67},{"d":"2024-03-15","tP":17.05,"vP":39.49,"y10":4.31,"tInd":6.51,"tTtm":6.51,"vInd":6.74,"vTtm":6.67},{"d":"2024-03-22","tP":16.98,"vP":40.37,"y10":4.22,"tInd":6.54,"tTtm":6.54,"vInd":6.59,"vTtm":6.53},{"d":"2024-03-29","tP":17.6,"vP":41.96,"y10":4.2,"tInd":6.31,"tTtm":6.31,"vInd":6.34,"vTtm":6.28},{"d":"2024-04-05","tP":17.42,"vP":42.12,"y10":4.39,"tInd":6.37,"tTtm":4.78,"vInd":6.32,"vTtm":4.71},{"d":"2024-04-12","tP":16.31,"vP":39.72,"y10":4.5,"tInd":6.81,"tTtm":6.81,"vInd":6.7,"vTtm":6.67},{"d":"2024-04-19","tP":16.51,"vP":40.49,"y10":4.62,"tInd":6.72,"tTtm":6.72,"vInd":6.57,"vTtm":6.54},{"d":"2024-04-26","tP":16.75,"vP":39.68,"y10":4.67,"tInd":6.63,"tTtm":6.63,"vInd":6.7,"vTtm":6.67},{"d":"2024-05-03","tP":16.85,"vP":38.89,"y10":4.5,"tInd":6.59,"tTtm":6.59,"vInd":6.84,"vTtm":6.81},{"d":"2024-05-10","tP":17.17,"vP":40.4,"y10":4.5,"tInd":6.46,"tTtm":6.46,"vInd":6.58,"vTtm":6.55},{"d":"2024-05-17","tP":17.4,"vP":40.06,"y10":4.42,"tInd":6.38,"tTtm":6.38,"vInd":6.64,"vTtm":6.61},{"d":"2024-05-24","tP":17.5,"vP":39.74,"y10":4.46,"tInd":6.34,"tTtm":6.34,"vInd":6.69,"vTtm":6.66},{"d":"2024-05-31","tP":18.22,"vP":41.15,"y10":4.51,"tInd":6.09,"tTtm":6.09,"vInd":6.46,"vTtm":6.43},{"d":"2024-06-07","tP":18.1,"vP":40.94,"y10":4.43,"tInd":6.13,"tTtm":6.13,"vInd":6.5,"vTtm":6.47},{"d":"2024-06-14","tP":17.64,"vP":39.67,"y10":4.2,"tInd":6.29,"tTtm":6.29,"vInd":6.71,"vTtm":6.67},{"d":"2024-06-21","tP":18.4,"vP":40.24,"y10":4.25,"tInd":6.03,"tTtm":6.03,"vInd":6.61,"vTtm":6.58},{"d":"2024-06-28","tP":19.11,"vP":41.24,"y10":4.36,"tInd":5.81,"tTtm":5.81,"vInd":6.45,"vTtm":6.42},{"d":"2024-07-05","tP":18.77,"vP":41.27,"y10":4.28,"tInd":5.91,"tTtm":5.91,"vInd":6.45,"vTtm":6.42},{"d":"2024-07-12","tP":18.81,"vP":41.43,"y10":4.18,"tInd":5.9,"tTtm":5.9,"vInd":6.42,"vTtm":6.42},{"d":"2024-07-19","tP":19.12,"vP":41.62,"y10":4.25,"tInd":5.81,"tTtm":5.81,"vInd":6.39,"vTtm":6.39},{"d":"2024-07-26","tP":19.01,"vP":40.09,"y10":4.2,"tInd":5.84,"tTtm":5.84,"vInd":6.64,"vTtm":6.64},{"d":"2024-08-02","tP":19.37,"vP":40.97,"y10":3.8,"tInd":5.73,"tTtm":5.73,"vInd":6.49,"vTtm":6.49},{"d":"2024-08-09","tP":19.49,"vP":40.75,"y10":3.94,"tInd":5.7,"tTtm":5.7,"vInd":6.53,"vTtm":6.53},{"d":"2024-08-16","tP":19.34,"vP":40.61,"y10":3.89,"tInd":5.74,"tTtm":5.74,"vInd":6.55,"vTtm":6.55},{"d":"2024-08-23","tP":19.73,"vP":41.21,"y10":3.81,"tInd":5.63,"tTtm":5.63,"vInd":6.45,"vTtm":6.45},{"d":"2024-08-30","tP":19.9,"vP":41.78,"y10":3.91,"tInd":5.58,"tTtm":5.58,"vInd":6.37,"vTtm":6.37},{"d":"2024-09-06","tP":20.97,"vP":41.15,"y10":3.72,"tInd":5.29,"tTtm":5.29,"vInd":6.46,"vTtm":6.46},{"d":"2024-09-13","tP":21.64,"vP":44.43,"y10":3.66,"tInd":5.13,"tTtm":5.13,"vInd":5.99,"vTtm":5.99},{"d":"2024-09-20","tP":21.54,"vP":44.33,"y10":3.73,"tInd":5.15,"tTtm":5.15,"vInd":6.0,"vTtm":6.0},{"d":"2024-09-27","tP":21.9,"vP":44.89,"y10":3.75,"tInd":5.07,"tTtm":5.07,"vInd":5.93,"vTtm":5.93},{"d":"2024-10-04","tP":21.91,"vP":44.18,"y10":3.98,"tInd":5.07,"tTtm":5.07,"vInd":6.02,"vTtm":6.02},{"d":"2024-10-11","tP":21.37,"vP":43.0,"y10":4.08,"tInd":5.19,"tTtm":5.19,"vInd":6.3,"vTtm":6.22},{"d":"2024-10-18","tP":21.85,"vP":43.99,"y10":4.08,"tInd":5.08,"tTtm":5.08,"vInd":6.16,"vTtm":6.08},{"d":"2024-10-25","tP":21.83,"vP":41.38,"y10":4.25,"tInd":5.08,"tTtm":5.08,"vInd":6.55,"vTtm":6.46},{"d":"2024-11-01","tP":22.12,"vP":41.36,"y10":4.37,"tInd":5.02,"tTtm":5.02,"vInd":6.55,"vTtm":6.46},{"d":"2024-11-08","tP":22.34,"vP":40.48,"y10":4.3,"tInd":4.97,"tTtm":4.97,"vInd":6.69,"vTtm":6.6},{"d":"2024-11-15","tP":22.68,"vP":41.65,"y10":4.43,"tInd":4.89,"tTtm":4.89,"vInd":6.51,"vTtm":6.42},{"d":"2024-11-22","tP":23.18,"vP":43.15,"y10":4.41,"tInd":4.79,"tTtm":4.79,"vInd":6.28,"vTtm":6.19},{"d":"2024-11-29","tP":23.16,"vP":44.34,"y10":4.18,"tInd":4.79,"tTtm":4.79,"vInd":6.11,"vTtm":6.03},{"d":"2024-12-06","tP":23.88,"vP":42.37,"y10":4.15,"tInd":4.65,"tTtm":4.65,"vInd":6.4,"vTtm":6.31},{"d":"2024-12-13","tP":23.63,"vP":42.28,"y10":4.4,"tInd":4.7,"tTtm":4.7,"vInd":6.41,"vTtm":6.32},{"d":"2024-12-20","tP":22.75,"vP":39.93,"y10":4.52,"tInd":4.88,"tTtm":4.88,"vInd":6.79,"vTtm":6.69},{"d":"2024-12-27","tP":22.86,"vP":39.92,"y10":4.62,"tInd":4.86,"tTtm":4.86,"vInd":6.79,"vTtm":6.69},{"d":"2025-01-03","tP":22.67,"vP":40.26,"y10":4.6,"tInd":4.9,"tTtm":4.9,"vInd":6.73,"vTtm":6.64},{"d":"2025-01-10","tP":21.69,"vP":37.81,"y10":4.77,"tInd":5.12,"tTtm":5.12,"vInd":7.17,"vTtm":7.1},{"d":"2025-01-17","tP":22.29,"vP":38.78,"y10":4.61,"tInd":4.98,"tTtm":4.98,"vInd":6.99,"vTtm":6.92},{"d":"2025-01-24","tP":22.72,"vP":39.54,"y10":4.63,"tInd":4.89,"tTtm":4.89,"vInd":6.85,"vTtm":6.79},{"d":"2025-01-31","tP":23.73,"vP":39.39,"y10":4.58,"tInd":4.68,"tTtm":4.68,"vInd":6.88,"vTtm":6.82},{"d":"2025-02-07","tP":24.54,"vP":39.88,"y10":4.49,"tInd":4.52,"tTtm":4.52,"vInd":6.8,"vTtm":6.73},{"d":"2025-02-14","tP":25.87,"vP":40.99,"y10":4.47,"tInd":4.29,"tTtm":4.29,"vInd":6.61,"vTtm":6.55},{"d":"2025-02-21","tP":26.62,"vP":42.76,"y10":4.42,"tInd":4.17,"tTtm":4.17,"vInd":6.34,"vTtm":6.28},{"d":"2025-02-28","tP":27.41,"vP":43.1,"y10":4.24,"tInd":4.05,"tTtm":4.05,"vInd":6.29,"vTtm":6.23},{"d":"2025-03-07","tP":27.12,"vP":46.06,"y10":4.32,"tInd":4.09,"tTtm":4.09,"vInd":5.88,"vTtm":5.83},{"d":"2025-03-14","tP":26.58,"vP":43.57,"y10":4.31,"tInd":4.18,"tTtm":4.18,"vInd":6.22,"vTtm":6.16},{"d":"2025-03-21","tP":27.02,"vP":43.99,"y10":4.25,"tInd":4.11,"tTtm":4.11,"vInd":6.16,"vTtm":6.1},{"d":"2025-03-28","tP":28.18,"vP":44.93,"y10":4.27,"tInd":3.94,"tTtm":3.94,"vInd":6.03,"vTtm":5.98},{"d":"2025-04-04","tP":26.64,"vP":43.03,"y10":4.01,"tInd":4.17,"tTtm":4.17,"vInd":6.3,"vTtm":6.24},{"d":"2025-04-11","tP":26.79,"vP":43.73,"y10":4.48,"tInd":4.14,"tTtm":4.14,"vInd":6.2,"vTtm":6.17},{"d":"2025-04-18","tP":27.15,"vP":44.04,"y10":4.34,"tInd":4.09,"tTtm":4.09,"vInd":6.15,"vTtm":6.13},{"d":"2025-04-25","tP":26.81,"vP":41.91,"y10":4.29,"tInd":4.14,"tTtm":4.14,"vInd":6.47,"vTtm":6.44},{"d":"2025-05-02","tP":27.61,"vP":43.74,"y10":4.33,"tInd":4.02,"tTtm":4.02,"vInd":6.2,"vTtm":6.17},{"d":"2025-05-09","tP":27.84,"vP":43.61,"y10":4.37,"tInd":3.99,"tTtm":3.99,"vInd":6.21,"vTtm":6.19},{"d":"2025-05-16","tP":27.72,"vP":43.99,"y10":4.43,"tInd":4.0,"tTtm":4.0,"vInd":6.16,"vTtm":6.13},{"d":"2025-05-23","tP":27.42,"vP":43.32,"y10":4.51,"tInd":4.05,"tTtm":4.05,"vInd":6.26,"vTtm":6.23},{"d":"2025-05-30","tP":27.8,"vP":43.96,"y10":4.41,"tInd":3.99,"tTtm":3.99,"vInd":6.16,"vTtm":6.14},{"d":"2025-06-06","tP":28.08,"vP":43.8,"y10":4.51,"tInd":3.95,"tTtm":3.95,"vInd":6.19,"vTtm":6.16},{"d":"2025-06-13","tP":28.19,"vP":43.01,"y10":4.41,"tInd":3.94,"tTtm":3.94,"vInd":6.3,"vTtm":6.27},{"d":"2025-06-20","tP":27.77,"vP":41.7,"y10":4.38,"tInd":4.0,"tTtm":4.0,"vInd":6.5,"vTtm":6.47},{"d":"2025-06-27","tP":28.08,"vP":42.31,"y10":4.29,"tInd":3.95,"tTtm":3.95,"vInd":6.41,"vTtm":6.38},{"d":"2025-07-04","tP":28.36,"vP":43.55,"y10":4.35,"tInd":3.91,"tTtm":3.91,"vInd":6.22,"vTtm":6.19},{"d":"2025-07-11","tP":26.97,"vP":41.62,"y10":4.43,"tInd":4.12,"tTtm":4.12,"vInd":6.51,"vTtm":6.51},{"d":"2025-07-18","tP":26.94,"vP":40.84,"y10":4.44,"tInd":4.12,"tTtm":4.12,"vInd":6.64,"vTtm":6.64},{"d":"2025-07-25","tP":28.0,"vP":43.08,"y10":4.4,"tInd":3.96,"tTtm":3.96,"vInd":6.29,"vTtm":6.29},{"d":"2025-08-01","tP":27.75,"vP":42.88,"y10":4.23,"tInd":4.0,"tTtm":4.0,"vInd":6.32,"vTtm":6.32},{"d":"2025-08-08","tP":28.08,"vP":43.15,"y10":4.27,"tInd":3.95,"tTtm":3.95,"vInd":6.28,"vTtm":6.28},{"d":"2025-08-15","tP":28.87,"vP":44.24,"y10":4.33,"tInd":3.84,"tTtm":3.84,"vInd":6.13,"vTtm":6.13},{"d":"2025-08-22","tP":28.77,"vP":44.44,"y10":4.26,"tInd":3.86,"tTtm":3.86,"vInd":6.1,"vTtm":6.1},{"d":"2025-08-29","tP":29.29,"vP":44.23,"y10":4.23,"tInd":3.79,"tTtm":3.79,"vInd":6.13,"vTtm":6.13},{"d":"2025-09-05","tP":29.59,"vP":44.38,"y10":4.1,"tInd":3.75,"tTtm":3.75,"vInd":6.11,"vTtm":6.11},{"d":"2025-09-12","tP":29.57,"vP":43.97,"y10":4.06,"tInd":3.75,"tTtm":3.75,"vInd":6.16,"vTtm":6.16},{"d":"2025-09-19","tP":29.01,"vP":43.48,"y10":4.14,"tInd":3.83,"tTtm":3.83,"vInd":6.23,"vTtm":6.23},{"d":"2025-09-26","tP":28.31,"vP":43.61,"y10":4.2,"tInd":3.92,"tTtm":3.92,"vInd":6.21,"vTtm":6.21},{"d":"2025-10-03","tP":27.06,"vP":43.67,"y10":4.13,"tInd":4.1,"tTtm":4.1,"vInd":6.21,"vTtm":6.21},{"d":"2025-10-10","tP":25.87,"vP":39.85,"y10":4.05,"tInd":4.29,"tTtm":4.29,"vInd":6.93,"vTtm":6.83},{"d":"2025-10-17","tP":26.34,"vP":40.55,"y10":4.02,"tInd":4.21,"tTtm":4.21,"vInd":6.81,"vTtm":6.71},{"d":"2025-10-24","tP":25.14,"vP":38.82,"y10":4.02,"tInd":4.42,"tTtm":4.42,"vInd":7.11,"vTtm":7.01},{"d":"2025-10-31","tP":24.75,"vP":39.74,"y10":4.11,"tInd":4.48,"tTtm":4.48,"vInd":6.95,"vTtm":6.85},{"d":"2025-11-07","tP":24.83,"vP":40.03,"y10":4.11,"tInd":4.47,"tTtm":4.47,"vInd":6.89,"vTtm":6.8},{"d":"2025-11-14","tP":25.59,"vP":41.06,"y10":4.14,"tInd":4.34,"tTtm":4.34,"vInd":6.72,"vTtm":6.63},{"d":"2025-11-21","tP":25.93,"vP":41.23,"y10":4.06,"tInd":4.28,"tTtm":4.28,"vInd":6.69,"vTtm":6.6},{"d":"2025-11-28","tP":26.02,"vP":41.11,"y10":4.02,"tInd":4.27,"tTtm":4.27,"vInd":6.71,"vTtm":6.62},{"d":"2025-12-05","tP":25.28,"vP":41.69,"y10":4.14,"tInd":4.39,"tTtm":4.39,"vInd":6.62,"vTtm":6.53},{"d":"2025-12-12","tP":24.58,"vP":40.89,"y10":4.19,"tInd":4.52,"tTtm":4.52,"vInd":6.75,"vTtm":6.66},{"d":"2025-12-19","tP":24.15,"vP":39.82,"y10":4.16,"tInd":4.6,"tTtm":4.6,"vInd":6.93,"vTtm":6.84},{"d":"2025-12-26","tP":24.65,"vP":40.48,"y10":4.14,"tInd":4.5,"tTtm":4.5,"vInd":6.82,"vTtm":6.73},{"d":"2026-01-02","tP":24.56,"vP":40.52,"y10":4.19,"tInd":4.52,"tTtm":4.52,"vInd":6.81,"vTtm":6.72},{"d":"2026-01-09","tP":23.99,"vP":40.46,"y10":4.18,"tInd":4.63,"tTtm":4.63,"vInd":6.82,"vTtm":6.73},{"d":"2026-01-16","tP":23.49,"vP":38.91,"y10":4.24,"tInd":4.73,"tTtm":3.54,"vInd":7.09,"vTtm":5.26},{"d":"2026-01-23","tP":23.59,"vP":39.52,"y10":4.24,"tInd":4.71,"tTtm":3.53,"vInd":6.98,"vTtm":5.17},{"d":"2026-01-30","tP":26.21,"vP":44.52,"y10":4.26,"tInd":4.24,"tTtm":3.18,"vInd":6.2,"vTtm":4.59},{"d":"2026-02-06","tP":27.13,"vP":46.31,"y10":4.22,"tInd":4.09,"tTtm":3.07,"vInd":5.96,"vTtm":4.42},{"d":"2026-02-13","tP":28.69,"vP":49.01,"y10":4.04,"tInd":3.87,"tTtm":2.9,"vInd":5.63,"vTtm":4.17},{"d":"2026-02-20","tP":27.98,"vP":49.25,"y10":4.08,"tInd":3.97,"tTtm":2.98,"vInd":5.6,"vTtm":4.15},{"d":"2026-02-27","tP":28.01,"vP":50.14,"y10":3.97,"tInd":3.96,"tTtm":2.97,"vInd":5.5,"vTtm":4.08},{"d":"2026-03-06","tP":28.64,"vP":51.12,"y10":4.15,"tInd":3.88,"tTtm":2.91,"vInd":5.4,"vTtm":4.0},{"d":"2026-03-13","tP":27.72,"vP":51.38,"y10":4.28,"tInd":4.0,"tTtm":3.0,"vInd":5.37,"vTtm":3.98},{"d":"2026-03-20","tP":28.31,"vP":49.98,"y10":4.39,"tInd":3.92,"tTtm":2.94,"vInd":5.52,"vTtm":4.09},{"d":"2026-03-27","tP":29.1,"vP":50.31,"y10":4.44,"tInd":3.81,"tTtm":2.86,"vInd":5.49,"vTtm":4.06},{"d":"2026-04-03","tP":28.33,"vP":49.4,"y10":4.35,"tInd":3.92,"tTtm":2.94,"vInd":5.59,"vTtm":4.14},{"d":"2026-04-10","tP":26.46,"vP":46.04,"y10":4.31,"tInd":4.2,"tTtm":3.15,"vInd":6.15,"vTtm":4.51},{"d":"2026-04-17","tP":26.51,"vP":46.55,"y10":4.26,"tInd":4.19,"tTtm":3.14,"vInd":6.08,"vTtm":4.46},{"d":"2026-04-24","tP":26.2,"vP":46.38,"y10":4.31,"tInd":4.24,"tTtm":3.18,"vInd":6.1,"vTtm":4.47},{"d":"2026-05-01","tP":26.12,"vP":48.11,"y10":4.39,"tInd":4.25,"tTtm":3.19,"vInd":5.88,"vTtm":4.31},{"d":"2026-05-08","tP":25.16,"vP":47.22,"y10":4.38,"tInd":4.41,"tTtm":3.31,"vInd":5.99,"vTtm":4.39},{"d":"2026-05-15","tP":24.03,"vP":46.37,"y10":4.59,"tInd":4.62,"tTtm":3.46,"vInd":6.1,"vTtm":4.47},{"d":"2026-05-22","tP":25.26,"vP":48.35,"y10":4.56,"tInd":4.39,"tTtm":3.3,"vInd":5.85,"vTtm":4.29},{"d":"2026-05-29","tP":24.8,"vP":47.81,"y10":4.45,"tInd":4.48,"tTtm":3.36,"vInd":5.92,"vTtm":4.34},{"d":"2026-06-05","tP":22.75,"vP":45.37,"y10":4.55,"tInd":4.88,"tTtm":3.66,"vInd":6.24,"vTtm":4.57},{"d":"2026-06-12","tP":23.58,"vP":48.11,"y10":4.48,"tInd":4.71,"tTtm":3.53,"vInd":5.88,"vTtm":4.31},{"d":"2026-06-19","tP":22.01,"vP":45.37,"y10":4.46,"tInd":5.04,"tTtm":3.78,"vInd":6.24,"vTtm":4.57},{"d":"2026-06-26","tP":22.72,"vP":46.54,"y10":4.38,"tInd":4.89,"tTtm":3.66,"vInd":6.08,"vTtm":4.46},{"d":"2026-07-03","tP":20.58,"vP":42.56,"y10":4.49,"tInd":5.39,"tTtm":4.05,"vInd":6.65,"vTtm":4.88},{"d":"2026-07-10","tP":21.13,"vP":42.12,"y10":4.56,"tInd":5.25,"tTtm":3.94,"vInd":6.72,"vTtm":5.0},{"d":"2026-07-17","tP":21.81,"vP":43.59,"y10":4.55,"tInd":5.09,"tTtm":3.82,"vInd":6.49,"vTtm":4.83},{"d":"2026-07-24","tP":24.13,"vP":46.38,"y10":4.69,"tInd":4.6,"tTtm":3.45,"vInd":6.1,"vTtm":4.54},{"d":"2026-07-31","tP":23.25,"vP":46.81,"y10":4.75,"tInd":4.77,"tTtm":3.58,"vInd":6.05,"vTtm":4.5},{"d":"2026-08-07","tP":23.79,"vP":47.06,"y10":4.65,"tInd":4.67,"tTtm":3.5,"vInd":6.01,"vTtm":4.47},{"d":"2026-08-14","tP":24.89,"vP":48.48,"y10":4.68,"tInd":4.46,"tTtm":3.34,"vInd":5.84,"vTtm":4.34},{"d":"2026-08-21","tP":25.29,"vP":49.45,"y10":4.74,"tInd":4.39,"tTtm":3.29,"vInd":5.72,"vTtm":4.26},{"d":"2026-08-28","tP":26.01,"vP":50.1,"y10":4.73,"tInd":4.27,"tTtm":3.2,"vInd":5.65,"vTtm":4.2},{"d":"2026-09-04","tP":25.68,"vP":50.14,"y10":4.78,"tInd":4.32,"tTtm":3.24,"vInd":5.64,"vTtm":4.2},{"d":"2026-09-11","tP":26.06,"vP":50.61,"y10":4.96,"tInd":4.26,"tTtm":3.19,"vInd":5.59,"vTtm":4.16},{"d":"2026-09-18","tP":25.4,"vP":48.09,"y10":5.01,"tInd":4.37,"tTtm":3.28,"vInd":5.88,"vTtm":4.38},{"d":"2026-09-22","tP":25.1,"vP":46.45,"y10":4.96,"tInd":4.42,"tTtm":3.32,"vInd":6.09,"vTtm":4.53}]};
+  const rows = DATA.rows.map(r => Object.assign({}, r, { date: new Date(r.d + 'T00:00:00Z') }));
+  const META = DATA.meta;
+  const state = { range: '5Y', basis: 'ind', table: false };
+  try {
+    const saved = JSON.parse(localStorage.getItem('telco-yield-state') || '{}');
+    if (['1Y','3Y','5Y','MAX'].includes(saved.range)) state.range = saved.range;
+    if (['ind','ttm'].includes(saved.basis)) state.basis = saved.basis;
+  } catch (e) {}
+
+  const fmtPct = v => v == null ? '–' : v.toFixed(2) + '%';
+  const fmtBp = v => v == null ? '–' : (v > 0 ? '+' : '') + Math.round(v) + ' bp';
+  const fmtPx = v => v == null ? '–' : '$' + v.toFixed(2);
+  const fmtDate = d => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
+  const fmtMonthYear = d => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
+
+  function yieldKeys() { return state.basis === 'ind' ? { t: 'tInd', v: 'vInd' } : { t: 'tTtm', v: 'vTtm' }; }
+  function basisLabel() { return state.basis === 'ind' ? 'indicated (latest quarterly dividend annualised)' : 'trailing twelve-month'; }
+
+  function subset() {
+    const last = rows[rows.length - 1].date;
+    const years = { '1Y': 1, '3Y': 3, '5Y': 5, 'MAX': 100 }[state.range];
+    const start = new Date(last); start.setUTCFullYear(start.getUTCFullYear() - years);
+    return rows.filter(r => r.date >= start);
+  }
+
+  function spread(r, key) { return (r[key] == null || r.y10 == null) ? null : (r[key] - r.y10) * 100; }
+
+  function ordinal(n) { const r = n % 100; if (r >= 11 && r <= 13) return n + 'th'; return n + ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'); }
+  function percentile(values, x) {
+    const v = values.filter(a => a != null);
+    if (!v.length || x == null) return null;
+    const below = v.filter(a => a <= x).length;
+    return ordinal(Math.round(100 * below / v.length));
+  }
+
+  // ---------- SVG helpers ----------
+  const NS = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs, parent) {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function niceStep(span, target) {
+    const raw = span / target;
+    const p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const m = raw / p;
+    const s = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10;
+    return s * p;
+  }
+  function xTicks(d0, d1) {
+    const spanYears = (d1 - d0) / (365.25 * 86400e3);
+    const out = [];
+    if (spanYears > 3.5) {
+      for (let y = d0.getUTCFullYear() + 1; y <= d1.getUTCFullYear(); y++) out.push({ d: new Date(Date.UTC(y, 0, 1)), label: String(y) });
+    } else if (spanYears > 1.5) {
+      for (let y = d0.getUTCFullYear(); y <= d1.getUTCFullYear(); y++) for (const m of [0, 6]) {
+        const d = new Date(Date.UTC(y, m, 1)); if (d > d0 && d < d1) out.push({ d, label: m === 0 ? String(y) : 'Jul' });
+      }
+    } else {
+      for (let y = d0.getUTCFullYear(); y <= d1.getUTCFullYear(); y++) for (let m = 0; m < 12; m += 2) {
+        const d = new Date(Date.UTC(y, m, 1)); if (d > d0 && d < d1) out.push({ d, label: d.toLocaleDateString('en-US', { month: 'short', timeZone: 'UTC' }) + (m === 0 ? ' ' + y : '') });
+      }
+    }
+    return out;
+  }
+
+  function drawLineChart(container, tipEl, series, opts) {
+    container.textContent = '';
+    const W = Math.max(320, container.clientWidth);
+    const H = container.clientHeight || 340;
+    const m = { t: 12, r: opts.rightPad || 96, b: 26, l: 46 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': opts.aria }, container);
+
+    const pts = series[0].points;
+    const d0 = pts[0].date, d1 = pts[pts.length - 1].date;
+    const allY = [];
+    series.forEach(s => s.points.forEach(p => { if (p.y != null) allY.push(p.y); }));
+    let yMin = Math.min(...allY), yMax = Math.max(...allY);
+    const dataMin = yMin;
+    if (opts.zero) { yMin = Math.min(yMin, 0); yMax = Math.max(yMax, 0); }
+    const pad = (yMax - yMin) * 0.08 || 1;
+    yMin -= pad; yMax += pad;
+    const step = niceStep(yMax - yMin, 5);
+    yMin = Math.floor(yMin / step) * step; yMax = Math.ceil(yMax / step) * step;
+    if (!opts.zero && dataMin >= 0 && yMin < 0) yMin = 0;
+
+    const x = d => m.l + (d - d0) / (d1 - d0) * iw;
+    const y = v => m.t + (yMax - v) / (yMax - yMin) * ih;
+
+    const grid = el('g', { class: 'grid' }, svg);
+    const axis = el('g', { class: 'axis' }, svg);
+    for (let v = yMin; v <= yMax + 1e-9; v += step) {
+      el('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v) }, grid);
+      const t = el('text', { x: m.l - 8, y: y(v) + 4, 'text-anchor': 'end' }, svg);
+      t.textContent = opts.yFormat(v);
+    }
+    el('line', { x1: m.l, x2: W - m.r, y1: m.t + ih, y2: m.t + ih }, axis);
+    if (opts.zero) el('line', { class: 'zero', x1: m.l, x2: W - m.r, y1: y(0), y2: y(0) }, svg);
+    xTicks(d0, d1).forEach(tk => {
+      el('line', { x1: x(tk.d), x2: x(tk.d), y1: m.t + ih, y2: m.t + ih + 4 }, axis);
+      const t = el('text', { x: x(tk.d), y: m.t + ih + 16, 'text-anchor': 'middle' }, svg);
+      t.textContent = tk.label;
+    });
+
+    series.forEach(s => {
+      let d = '', pen = false;
+      s.points.forEach(p => {
+        if (p.y == null) { pen = false; return; }
+        d += (pen ? 'L' : 'M') + x(p.date).toFixed(1) + ' ' + y(p.y).toFixed(1);
+        pen = true;
+      });
+      el('path', { class: 'line' + (s.bench ? ' bench' : ''), d, stroke: s.color }, svg);
+    });
+
+    // direct labels at the right end, pushed apart to avoid collisions
+    const labels = series.map(s => {
+      let lastP = null; for (let i = s.points.length - 1; i >= 0; i--) if (s.points[i].y != null) { lastP = s.points[i]; break; }
+      return lastP ? { s, yy: y(lastP.y), text: s.short + ' ' + opts.yFormat(lastP.y) } : null;
+    }).filter(Boolean).sort((a, b) => a.yy - b.yy);
+    for (let i = 1; i < labels.length; i++) if (labels[i].yy - labels[i - 1].yy < 14) labels[i].yy = labels[i - 1].yy + 14;
+    for (let i = labels.length - 1; i >= 0; i--) if (labels[i].yy > m.t + ih) labels[i].yy = m.t + ih;
+    for (let i = labels.length - 2; i >= 0; i--) if (labels[i + 1].yy - labels[i].yy < 14) labels[i].yy = labels[i + 1].yy - 14;
+    labels.forEach(l => {
+      const t = el('text', { class: 'endlabel', x: W - m.r + 8, y: l.yy + 4 }, svg);
+      t.textContent = l.text;
+    });
+
+    // hover layer
+    const cross = el('line', { class: 'crosshair', y1: m.t, y2: m.t + ih }, svg);
+    const dots = series.map(s => el('circle', { class: 'dot', r: 4, fill: s.color }, svg));
+    const hit = el('rect', { class: 'hit', x: m.l, y: m.t, width: iw, height: ih }, svg);
+
+    function show(clientX) {
+      const rect = svg.getBoundingClientRect();
+      const px = (clientX - rect.left) * (W / rect.width);
+      const t = d0.getTime() + (px - m.l) / iw * (d1 - d0);
+      let lo = 0, hi = pts.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (pts[mid].date.getTime() < t) lo = mid; else hi = mid; }
+      const i = Math.abs(pts[lo].date - t) < Math.abs(pts[hi].date - t) ? lo : hi;
+      const cx = x(pts[i].date);
+      cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.style.opacity = 1;
+      tipEl.textContent = '';
+      const dd = document.createElement('div'); dd.className = 'd'; dd.textContent = fmtDate(pts[i].date); tipEl.appendChild(dd);
+      series.forEach((s, k) => {
+        const p = s.points[i];
+        if (p.y == null) { dots[k].style.opacity = 0; } else {
+          dots[k].setAttribute('cx', cx); dots[k].setAttribute('cy', y(p.y)); dots[k].style.opacity = 1;
+        }
+        const row = document.createElement('div'); row.className = 'row';
+        const lab = document.createElement('span');
+        const key = document.createElement('i'); key.className = 'key'; key.style.color = s.color; lab.appendChild(key);
+        lab.appendChild(document.createTextNode(s.label));
+        const val = document.createElement('b'); val.textContent = p.y == null ? '–' : opts.yFormat(p.y);
+        row.appendChild(lab); row.appendChild(val); tipEl.appendChild(row);
+        if (s.extra) { const ex = document.createElement('div'); ex.className = 'd'; ex.textContent = s.extra(p); tipEl.appendChild(ex); }
+      });
+      tipEl.style.display = 'block';
+      const cw = container.clientWidth, tw = tipEl.offsetWidth;
+      const leftPx = cx * (rect.width / W);
+      tipEl.style.left = (leftPx + 14 + tw > cw ? leftPx - tw - 14 : leftPx + 14) + 'px';
+      tipEl.style.top = (container.offsetTop + 8) + 'px';
+    }
+    function hide() { cross.style.opacity = 0; dots.forEach(d => d.style.opacity = 0); tipEl.style.display = 'none'; }
+    hit.addEventListener('pointermove', e => show(e.clientX));
+    hit.addEventListener('pointerleave', hide);
+    hit.setAttribute('tabindex', '0');
+    let focusIdx = pts.length - 1;
+    hit.addEventListener('focus', () => { const r = svg.getBoundingClientRect(); show(r.left + x(pts[focusIdx].date) * (r.width / W)); });
+    hit.addEventListener('blur', hide);
+    hit.addEventListener('keydown', e => {
+      if (e.key === 'ArrowLeft') focusIdx = Math.max(0, focusIdx - 1);
+      else if (e.key === 'ArrowRight') focusIdx = Math.min(pts.length - 1, focusIdx + 1);
+      else return;
+      e.preventDefault();
+      const r = svg.getBoundingClientRect(); show(r.left + x(pts[focusIdx].date) * (r.width / W));
+    });
+  }
+
+  // ---------- render ----------
+  function renderTiles(sub) {
+    const k = yieldKeys();
+    const last = sub[sub.length - 1];
+    const hist = rows; // percentiles against the full history since 2016
+    const tS = spread(last, k.t), vS = spread(last, k.v);
+    const tiles = [
+      { label: 'AT&T dividend yield', color: 'var(--s-t)', value: fmtPct(last[k.t]), sub: `Price ${fmtPx(last.tP)} · last dividend $${META.lastDividend.T.amount} (ex ${META.lastDividend.T.exDate})` },
+      { label: 'Verizon dividend yield', color: 'var(--s-vz)', value: fmtPct(last[k.v]), sub: `Price ${fmtPx(last.vP)} · last dividend $${META.lastDividend.VZ.amount} (ex ${META.lastDividend.VZ.exDate})` },
+      { label: 'US 10-year Treasury', color: 'var(--s-10y)', value: fmtPct(last.y10), sub: 'FRED DGS10, constant maturity' },
+      { label: 'T spread to 10Y', color: 'var(--s-t)', value: fmtBp(tS), neg: tS < 0, sub: `${percentile(hist.map(r => spread(r, k.t)), tS)} percentile since ${META.firstDate.slice(0, 4)}` },
+      { label: 'VZ spread to 10Y', color: 'var(--s-vz)', value: fmtBp(vS), neg: vS < 0, sub: `${percentile(hist.map(r => spread(r, k.v)), vS)} percentile since ${META.firstDate.slice(0, 4)}` },
+    ];
+    const host = document.getElementById('tiles'); host.textContent = '';
+    tiles.forEach(t => {
+      const d = document.createElement('div'); d.className = 'tile'; d.style.borderLeftColor = t.color;
+      const kk = document.createElement('div'); kk.className = 'k';
+      const key = document.createElement('i'); key.className = 'key'; key.style.color = t.color; kk.appendChild(key);
+      kk.appendChild(document.createTextNode(t.label));
+      const v = document.createElement('div'); v.className = 'v'; v.textContent = t.value; if (t.neg) v.style.color = 'var(--neg)';
+      const s = document.createElement('div'); s.className = 's'; s.textContent = t.sub;
+      d.appendChild(kk); d.appendChild(v); d.appendChild(s); host.appendChild(d);
+    });
+  }
+
+  function renderCharts(sub) {
+    const k = yieldKeys();
+    document.getElementById('yield-desc').textContent = `Weekly Friday observations, ${basisLabel()} dividend yield on the unadjusted closing price, versus the 10-year constant-maturity Treasury yield. All three series share one percent axis.`;
+    drawLineChart(document.getElementById('chart-yield'), document.getElementById('tip-yield'), [
+      { label: 'AT&T (T)', short: 'T', color: getComputedStyle(document.documentElement).getPropertyValue('--s-t').trim(), points: sub.map(r => ({ date: r.date, y: r[k.t], p: r.tP })), extra: p => p.p == null ? '' : 'T price ' + fmtPx(p.p) },
+      { label: 'Verizon (VZ)', short: 'VZ', color: getComputedStyle(document.documentElement).getPropertyValue('--s-vz').trim(), points: sub.map(r => ({ date: r.date, y: r[k.v], p: r.vP })), extra: p => p.p == null ? '' : 'VZ price ' + fmtPx(p.p) },
+      { label: 'US 10Y Treasury', short: '10Y', color: getComputedStyle(document.documentElement).getPropertyValue('--s-10y').trim(), bench: true, points: sub.map(r => ({ date: r.date, y: r.y10 })) },
+    ], { yFormat: v => (Math.abs(v) < 1e-9 ? '0' : v.toFixed(Number.isInteger(v) ? 0 : 1)) + '%', aria: 'Dividend yields of AT&T and Verizon and the 10-year Treasury yield over time' });
+
+    drawLineChart(document.getElementById('chart-spread'), document.getElementById('tip-spread'), [
+      { label: 'T minus 10Y', short: 'T', color: getComputedStyle(document.documentElement).getPropertyValue('--s-t').trim(), points: sub.map(r => ({ date: r.date, y: spread(r, k.t) })) },
+      { label: 'VZ minus 10Y', short: 'VZ', color: getComputedStyle(document.documentElement).getPropertyValue('--s-vz').trim(), points: sub.map(r => ({ date: r.date, y: spread(r, k.v) })) },
+    ], { yFormat: v => (v > 0 ? '+' : '') + Math.round(v) + ' bp', zero: true, rightPad: 88, aria: 'Dividend yield spread over the 10-year Treasury for AT&T and Verizon' });
+  }
+
+  function renderTable(sub) {
+    const k = yieldKeys();
+    const table = document.getElementById('table');
+    const thead = table.querySelector('thead'), tbody = table.querySelector('tbody');
+    thead.textContent = ''; tbody.textContent = '';
+    const tr = document.createElement('tr');
+    ['Week ending', 'T price', 'T yield', 'VZ price', 'VZ yield', '10Y', 'T − 10Y', 'VZ − 10Y'].forEach(h => { const th = document.createElement('th'); th.textContent = h; tr.appendChild(th); });
+    thead.appendChild(tr);
+    document.getElementById('table-desc').textContent = `${sub.length} weeks, most recent first. Yield basis: ${basisLabel()}.`;
+    for (let i = sub.length - 1; i >= 0; i--) {
+      const r = sub[i], tS = spread(r, k.t), vS = spread(r, k.v);
+      const row = document.createElement('tr');
+      [[fmtDate(r.date)], [fmtPx(r.tP)], [fmtPct(r[k.t])], [fmtPx(r.vP)], [fmtPct(r[k.v])], [fmtPct(r.y10)], [fmtBp(tS), tS < 0], [fmtBp(vS), vS < 0]]
+        .forEach(([txt, neg]) => { const td = document.createElement('td'); td.textContent = txt; if (neg) td.className = 'neg'; row.appendChild(td); });
+      tbody.appendChild(row);
+    }
+  }
+
+  function renderNotes() {
+    const n = document.getElementById('notes'); n.textContent = '';
+    const paras = [
+      `Prices: ${META.sources.prices}. Dividends: ${META.sources.dividends}. Treasury: ${META.sources.treasury}.`,
+      'AT&T prices before 11 April 2022 are restored to the level an investor actually paid. Yahoo Finance books the WarnerMedia spin-off as a 1324:1000 split and scales every earlier close down by 1.324, which would overstate AT&T\'s historical yield by about a third if left in place. Verizon has no such adjustment in the window.',
+      'Indicated yield annualises the most recent quarterly dividend on or before each date. Trailing 12M yield sums cash dividends with ex-dates in the prior 365 days. Both use the weekly closing price, so AT&T\'s April 2022 cut to $0.2775 shows up immediately on the indicated basis and rolls through over a year on the trailing basis.',
+      'Known gap: the dividend feed has no January 2026 ex-date for either company, so trailing 12M yields covering that quarter understate by one payment until the source is corrected.',
+      `Data as of ${META.asOf}. Rebuild with scripts/build_dashboard.py after refreshing data/ with scripts/fetch_data.py.`,
+    ];
+    paras.forEach(t => { const p = document.createElement('p'); p.textContent = t; n.appendChild(p); });
+  }
+
+  function render() {
+    const sub = subset();
+    const last = sub[sub.length - 1];
+    document.getElementById('subline').innerHTML = '';
+    const s = document.getElementById('subline');
+    s.appendChild(document.createTextNode('Weekly, ' + META.firstDate.slice(0, 4) + ' to '));
+    const b = document.createElement('b'); b.textContent = fmtDate(last.date); s.appendChild(b);
+    s.appendChild(document.createTextNode('. Dividend yield on the price an investor paid at the time, compared with the 10-year constant-maturity Treasury.'));
+    document.querySelectorAll('#range-seg button').forEach(bt => bt.setAttribute('aria-pressed', String(bt.dataset.range === state.range)));
+    document.querySelectorAll('#basis-seg button').forEach(bt => bt.setAttribute('aria-pressed', String(bt.dataset.basis === state.basis)));
+    renderTiles(sub);
+    renderCharts(sub);
+    renderTable(sub);
+    try { localStorage.setItem('telco-yield-state', JSON.stringify({ range: state.range, basis: state.basis })); } catch (e) {}
+  }
+
+  document.getElementById('range-seg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.range = b.dataset.range; render(); });
+  document.getElementById('basis-seg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; state.basis = b.dataset.basis; render(); });
+  const tt = document.getElementById('table-toggle');
+  tt.addEventListener('click', () => { state.table = !state.table; tt.setAttribute('aria-pressed', String(state.table)); document.getElementById('table-card').hidden = !state.table; });
+
+  let raf = null;
+  window.addEventListener('resize', () => { if (raf) cancelAnimationFrame(raf); raf = requestAnimationFrame(() => renderCharts(subset())); });
+  if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => renderCharts(subset()));
+  new MutationObserver(() => renderCharts(subset())).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  renderNotes();
+  render();
+})();
+</script>
+
+</body>
+</html>

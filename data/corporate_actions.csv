@@ -1,0 +1,2 @@
+ticker,effective_date,type,numerator,denominator,note
+T,2022-04-11,spinoff_adjustment,1324,1000,"WarnerMedia spin-off into Warner Bros. Discovery. Yahoo Finance records it as a 1324:1000 split, so every T close before this date in the Yahoo/Wolfram feed is divided by 1.324. The build multiplies those closes back by 1.324 to recover the price an investor actually paid."
