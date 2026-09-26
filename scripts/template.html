@@ -179,6 +179,14 @@
   .tip .row b { font-variant-numeric: tabular-nums; }
   .tip .row span { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
 
+  .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .panel { display: grid; gap: 6px; position: relative; }
+  .panel h3 { font-size: 13px; font-weight: 600; margin: 0; display: flex; align-items: center; gap: 8px; }
+  .panel .chart { height: 260px; }
+  .chart path.area { stroke: none; }
+  .chart path.area.div { fill-opacity: 0.32; }
+  .chart path.area.bb { fill-opacity: 0.85; }
+  .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px; }
   .tablewrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
   th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
@@ -202,7 +210,7 @@
 <div class="wrap">
   <header>
     <div class="eyebrow">Income equities vs the risk-free rate</div>
-    <h1>AT&amp;T and Verizon dividend yields against the 10-year Treasury</h1>
+    <h1>AT&amp;T and Verizon shareholder yields against the 10-year Treasury</h1>
     <p class="sub" id="subline"></p>
   </header>
 
@@ -219,8 +227,9 @@
     <div>
       <span class="ctl-label">Yield basis</span>
       <div class="seg" id="basis-seg">
-        <button type="button" id="basis-ind" data-basis="ind" aria-pressed="true">Indicated</button>
-        <button type="button" id="basis-ttm" data-basis="ttm">Trailing 12M</button>
+        <button type="button" id="basis-ind" data-basis="ind" aria-pressed="true">Indicated dividend</button>
+        <button type="button" id="basis-ttm" data-basis="ttm">Trailing dividend</button>
+        <button type="button" id="basis-tsy" data-basis="tsy">Total shareholder</button>
       </div>
     </div>
     <button type="button" class="toggle" id="table-toggle" aria-pressed="false" aria-controls="table-card">Table view</button>
@@ -229,7 +238,7 @@
   <section class="tiles" id="tiles" aria-label="Latest readings"></section>
 
   <section class="card">
-    <h2>Dividend yield vs 10-year Treasury yield</h2>
+    <h2 id="yield-title">Dividend yield vs 10-year Treasury yield</h2>
     <p class="desc" id="yield-desc"></p>
     <div class="legend">
       <span><i class="key" style="color:var(--s-t)"></i>AT&amp;T (T)</span>
@@ -242,13 +251,42 @@
 
   <section class="card">
     <h2>Yield spread to the 10-year Treasury</h2>
-    <p class="desc">Dividend yield minus the 10-year yield, in basis points. Below zero means the Treasury out-yields the stock.</p>
+    <p class="desc" id="spread-desc"></p>
     <div class="legend">
       <span><i class="key" style="color:var(--s-t)"></i>T minus 10Y</span>
       <span><i class="key" style="color:var(--s-vz)"></i>VZ minus 10Y</span>
     </div>
     <div class="chart" id="chart-spread"></div>
     <div class="tip" id="tip-spread"></div>
+  </section>
+
+  <section class="card">
+    <h2>Total shareholder yield: dividends plus buybacks</h2>
+    <p class="desc" id="tsy-desc"></p>
+    <div class="panels">
+      <div class="panel">
+        <h3><i class="swatch" style="background:var(--s-t)"></i>AT&amp;T</h3>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--s-t);opacity:.32"></i>Dividends</span>
+          <span><i class="swatch" style="background:var(--s-t);opacity:.85"></i>Buybacks</span>
+          <span><i class="key" style="color:var(--s-t)"></i>Total</span>
+          <span><i class="key" style="color:var(--s-10y)"></i>10Y</span>
+        </div>
+        <div class="chart" id="chart-tsy-t"></div>
+        <div class="tip" id="tip-tsy-t"></div>
+      </div>
+      <div class="panel">
+        <h3><i class="swatch" style="background:var(--s-vz)"></i>Verizon</h3>
+        <div class="legend">
+          <span><i class="swatch" style="background:var(--s-vz);opacity:.32"></i>Dividends</span>
+          <span><i class="swatch" style="background:var(--s-vz);opacity:.85"></i>Buybacks</span>
+          <span><i class="key" style="color:var(--s-vz)"></i>Total</span>
+          <span><i class="key" style="color:var(--s-10y)"></i>10Y</span>
+        </div>
+        <div class="chart" id="chart-tsy-vz"></div>
+        <div class="tip" id="tip-tsy-vz"></div>
+      </div>
+    </div>
   </section>
 
   <section class="card" id="table-card" hidden>
@@ -269,7 +307,7 @@
   try {
     const saved = JSON.parse(localStorage.getItem('telco-yield-state') || '{}');
     if (['1Y','3Y','5Y','MAX'].includes(saved.range)) state.range = saved.range;
-    if (['ind','ttm'].includes(saved.basis)) state.basis = saved.basis;
+    if (['ind','ttm','tsy'].includes(saved.basis)) state.basis = saved.basis;
   } catch (e) {}
 
   const fmtPct = v => v == null ? '–' : v.toFixed(2) + '%';
@@ -278,8 +316,15 @@
   const fmtDate = d => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });
   const fmtMonthYear = d => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', timeZone: 'UTC' });
 
-  function yieldKeys() { return state.basis === 'ind' ? { t: 'tInd', v: 'vInd' } : { t: 'tTtm', v: 'vTtm' }; }
-  function basisLabel() { return state.basis === 'ind' ? 'indicated (latest quarterly dividend annualised)' : 'trailing twelve-month'; }
+  const BASIS = {
+    ind: { keys: { t: 'tInd', v: 'vInd' }, label: 'indicated dividend yield (latest quarterly dividend annualised, per share)', short: 'Dividend yield', title: 'Dividend yield vs 10-year Treasury yield' },
+    ttm: { keys: { t: 'tTtm', v: 'vTtm' }, label: 'trailing twelve-month cash dividends paid over market capitalisation', short: 'Dividend yield', title: 'Trailing dividend yield vs 10-year Treasury yield' },
+    tsy: { keys: { t: 'tTsy', v: 'vTsy' }, label: 'total shareholder yield (trailing twelve-month dividends plus buybacks, over market capitalisation)', short: 'Total yield', title: 'Total shareholder yield vs 10-year Treasury yield' },
+  };
+  function yieldKeys() { return BASIS[state.basis].keys; }
+  function basisLabel() { return BASIS[state.basis].label; }
+  const fmtB = v => v == null ? '–' : '$' + v.toFixed(1) + 'B';
+  const fmtSigned = v => v == null ? '–' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
 
   function subset() {
     const last = rows[rows.length - 1].date;
@@ -449,9 +494,15 @@
     const last = sub[sub.length - 1];
     const hist = rows; // percentiles against the full history since 2016
     const tS = spread(last, k.t), vS = spread(last, k.v);
+    const short = BASIS[state.basis].short;
+    function subFor(pfx, tk) {
+      if (state.basis === 'ind') return `Price ${fmtPx(last[pfx + 'P'])} · last dividend $${META.lastDividend[tk].amount} (ex ${META.lastDividend[tk].exDate})`;
+      if (state.basis === 'ttm') return `TTM dividends ${fmtB(META.latestCash[tk].ttmDividendsB)} on ${fmtB(last[pfx + 'Mc'])} market cap · shares ${fmtSigned(last[pfx + 'Shr'])} YoY`;
+      return `Dividends ${fmtPct(last[pfx + 'Ttm'])} + buybacks ${fmtPct(last[pfx + 'Bb'])} · shares ${fmtSigned(last[pfx + 'Shr'])} YoY`;
+    }
     const tiles = [
-      { label: 'AT&T dividend yield', color: 'var(--s-t)', value: fmtPct(last[k.t]), sub: `Price ${fmtPx(last.tP)} · last dividend $${META.lastDividend.T.amount} (ex ${META.lastDividend.T.exDate})` },
-      { label: 'Verizon dividend yield', color: 'var(--s-vz)', value: fmtPct(last[k.v]), sub: `Price ${fmtPx(last.vP)} · last dividend $${META.lastDividend.VZ.amount} (ex ${META.lastDividend.VZ.exDate})` },
+      { label: 'AT&T ' + short.toLowerCase(), color: 'var(--s-t)', value: fmtPct(last[k.t]), sub: subFor('t', 'T') },
+      { label: 'Verizon ' + short.toLowerCase(), color: 'var(--s-vz)', value: fmtPct(last[k.v]), sub: subFor('v', 'VZ') },
       { label: 'US 10-year Treasury', color: 'var(--s-10y)', value: fmtPct(last.y10), sub: 'FRED DGS10, constant maturity' },
       { label: 'T spread to 10Y', color: 'var(--s-t)', value: fmtBp(tS), neg: tS < 0, sub: `${percentile(hist.map(r => spread(r, k.t)), tS)} percentile since ${META.firstDate.slice(0, 4)}` },
       { label: 'VZ spread to 10Y', color: 'var(--s-vz)', value: fmtBp(vS), neg: vS < 0, sub: `${percentile(hist.map(r => spread(r, k.v)), vS)} percentile since ${META.firstDate.slice(0, 4)}` },
@@ -470,7 +521,8 @@
 
   function renderCharts(sub) {
     const k = yieldKeys();
-    document.getElementById('yield-desc').textContent = `Weekly Friday observations, ${basisLabel()} dividend yield on the unadjusted closing price, versus the 10-year constant-maturity Treasury yield. All three series share one percent axis.`;
+    document.getElementById('yield-title').textContent = BASIS[state.basis].title;
+    document.getElementById('yield-desc').textContent = `Weekly Friday observations of ${basisLabel()}, versus the 10-year constant-maturity Treasury yield. All three series share one percent axis.`;
     drawLineChart(document.getElementById('chart-yield'), document.getElementById('tip-yield'), [
       { label: 'AT&T (T)', short: 'T', color: getComputedStyle(document.documentElement).getPropertyValue('--s-t').trim(), points: sub.map(r => ({ date: r.date, y: r[k.t], p: r.tP })), extra: p => p.p == null ? '' : 'T price ' + fmtPx(p.p) },
       { label: 'Verizon (VZ)', short: 'VZ', color: getComputedStyle(document.documentElement).getPropertyValue('--s-vz').trim(), points: sub.map(r => ({ date: r.date, y: r[k.v], p: r.vP })), extra: p => p.p == null ? '' : 'VZ price ' + fmtPx(p.p) },
@@ -480,7 +532,106 @@
     drawLineChart(document.getElementById('chart-spread'), document.getElementById('tip-spread'), [
       { label: 'T minus 10Y', short: 'T', color: getComputedStyle(document.documentElement).getPropertyValue('--s-t').trim(), points: sub.map(r => ({ date: r.date, y: spread(r, k.t) })) },
       { label: 'VZ minus 10Y', short: 'VZ', color: getComputedStyle(document.documentElement).getPropertyValue('--s-vz').trim(), points: sub.map(r => ({ date: r.date, y: spread(r, k.v) })) },
-    ], { yFormat: v => (v > 0 ? '+' : '') + Math.round(v) + ' bp', zero: true, rightPad: 88, aria: 'Dividend yield spread over the 10-year Treasury for AT&T and Verizon' });
+    ], { yFormat: v => (v > 0 ? '+' : '') + Math.round(v) + ' bp', zero: true, rightPad: 88, aria: 'Yield spread over the 10-year Treasury for AT&T and Verizon' });
+
+    document.getElementById('spread-desc').textContent = `${BASIS[state.basis].short} minus the 10-year yield, in basis points. Below zero means the Treasury out-yields the stock.`;
+    const lc = META.latestCash;
+    document.getElementById('tsy-desc').textContent = `Trailing twelve-month cash dividends and share repurchases from the cash flow statement, each over market capitalisation, stacked. Latest four quarters through ${lc.T.quarterEnd}: AT&T paid ${fmtB(lc.T.ttmDividendsB)} in dividends and ${fmtB(lc.T.ttmBuybacksB)} in buybacks on a ${fmtB(lc.T.marketCapB)} market cap; Verizon ${fmtB(lc.VZ.ttmDividendsB)} and ${fmtB(lc.VZ.ttmBuybacksB)} on ${fmtB(lc.VZ.marketCapB)}.`;
+    drawStackedPanel(document.getElementById('chart-tsy-t'), document.getElementById('tip-tsy-t'), sub.map(r => ({ date: r.date, div: r.tTtm, bb: r.tBb, y10: r.y10 })), css('--s-t'), 'AT&T');
+    drawStackedPanel(document.getElementById('chart-tsy-vz'), document.getElementById('tip-tsy-vz'), sub.map(r => ({ date: r.date, div: r.vTtm, bb: r.vBb, y10: r.y10 })), css('--s-vz'), 'Verizon');
+  }
+  function css(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  function drawStackedPanel(container, tipEl, pts, color, name) {
+    container.textContent = '';
+    const W = Math.max(280, container.clientWidth), H = container.clientHeight || 260;
+    const m = { t: 10, r: 70, b: 24, l: 40 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': name + ' total shareholder yield decomposed into dividends and buybacks, with the 10-year Treasury yield' }, container);
+    const d0 = pts[0].date, d1 = pts[pts.length - 1].date;
+    const tot = p => (p.div == null || p.bb == null) ? null : p.div + p.bb;
+    let yMax = 0;
+    pts.forEach(p => { const t = tot(p); if (t != null) yMax = Math.max(yMax, t); if (p.y10 != null) yMax = Math.max(yMax, p.y10); });
+    const step = niceStep(yMax * 1.08, 4);
+    yMax = Math.ceil(yMax * 1.08 / step) * step;
+    const x = d => m.l + (d - d0) / (d1 - d0) * iw;
+    const y = v => m.t + (yMax - v) / yMax * ih;
+    const grid = el('g', { class: 'grid' }, svg), axis = el('g', { class: 'axis' }, svg);
+    for (let v = 0; v <= yMax + 1e-9; v += step) {
+      el('line', { x1: m.l, x2: W - m.r, y1: y(v), y2: y(v) }, grid);
+      const t = el('text', { x: m.l - 8, y: y(v) + 4, 'text-anchor': 'end' }, svg); t.textContent = (Number.isInteger(v) ? v : v.toFixed(1)) + '%';
+    }
+    el('line', { x1: m.l, x2: W - m.r, y1: m.t + ih, y2: m.t + ih }, axis);
+    xTicks(d0, d1).forEach(tk => {
+      el('line', { x1: x(tk.d), x2: x(tk.d), y1: m.t + ih, y2: m.t + ih + 4 }, axis);
+      const t = el('text', { x: x(tk.d), y: m.t + ih + 16, 'text-anchor': 'middle' }, svg); t.textContent = tk.label;
+    });
+    // areas: split into runs of non-null points so gaps stay gaps
+    function areaPath(lower, upper) {
+      let d = '', run = [];
+      const flush = () => {
+        if (run.length < 2) { run = []; return; }
+        d += 'M' + run.map(p => x(p.date).toFixed(1) + ' ' + y(upper(p)).toFixed(1)).join('L');
+        d += 'L' + run.slice().reverse().map(p => x(p.date).toFixed(1) + ' ' + y(lower(p)).toFixed(1)).join('L') + 'Z';
+        run = [];
+      };
+      pts.forEach(p => { if (p.div == null || p.bb == null) flush(); else run.push(p); });
+      flush();
+      return d;
+    }
+    el('path', { class: 'area div', d: areaPath(p => 0, p => p.div), fill: color }, svg);
+    el('path', { class: 'area bb', d: areaPath(p => p.div, p => p.div + p.bb), fill: color }, svg);
+    function linePath(get) {
+      let d = '', pen = false;
+      pts.forEach(p => { const v = get(p); if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + x(p.date).toFixed(1) + ' ' + y(v).toFixed(1); pen = true; });
+      return d;
+    }
+    el('path', { class: 'line', d: linePath(tot), stroke: color }, svg);
+    el('path', { class: 'line bench', d: linePath(p => p.y10), stroke: css('--s-10y') }, svg);
+    let lastTot = null, lastY10 = null;
+    for (let i = pts.length - 1; i >= 0; i--) { if (lastTot == null && tot(pts[i]) != null) lastTot = tot(pts[i]); if (lastY10 == null && pts[i].y10 != null) lastY10 = pts[i].y10; }
+    const labels = [];
+    if (lastTot != null) labels.push({ yy: y(lastTot), text: 'Total ' + lastTot.toFixed(1) + '%' });
+    if (lastY10 != null) labels.push({ yy: y(lastY10), text: '10Y ' + lastY10.toFixed(1) + '%' });
+    labels.sort((a, b) => a.yy - b.yy);
+    if (labels.length === 2 && labels[1].yy - labels[0].yy < 14) labels[1].yy = labels[0].yy + 14;
+    labels.forEach(l => { const t = el('text', { class: 'endlabel', x: W - m.r + 6, y: l.yy + 4 }, svg); t.textContent = l.text; });
+
+    const cross = el('line', { class: 'crosshair', y1: m.t, y2: m.t + ih }, svg);
+    const dot = el('circle', { class: 'dot', r: 4, fill: color }, svg);
+    const hit = el('rect', { class: 'hit', x: m.l, y: m.t, width: iw, height: ih, tabindex: '0' }, svg);
+    function show(clientX) {
+      const rect = svg.getBoundingClientRect();
+      const px = (clientX - rect.left) * (W / rect.width);
+      const t = d0.getTime() + (px - m.l) / iw * (d1 - d0);
+      let lo = 0, hi = pts.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (pts[mid].date.getTime() < t) lo = mid; else hi = mid; }
+      const i = Math.abs(pts[lo].date - t) < Math.abs(pts[hi].date - t) ? lo : hi;
+      const p = pts[i], cx = x(p.date);
+      cross.setAttribute('x1', cx); cross.setAttribute('x2', cx); cross.style.opacity = 1;
+      if (tot(p) != null) { dot.setAttribute('cx', cx); dot.setAttribute('cy', y(tot(p))); dot.style.opacity = 1; } else dot.style.opacity = 0;
+      tipEl.textContent = '';
+      const dd = document.createElement('div'); dd.className = 'd'; dd.textContent = fmtDate(p.date); tipEl.appendChild(dd);
+      [['Total', tot(p), color, 'line'], ['Dividends', p.div, color, 'div'], ['Buybacks', p.bb, color, 'bb'], ['10Y Treasury', p.y10, css('--s-10y'), 'line']].forEach(([lab, val, col, kind]) => {
+        const row = document.createElement('div'); row.className = 'row';
+        const l = document.createElement('span');
+        const key = document.createElement('i'); key.className = kind === 'line' ? 'key' : 'swatch'; key.style.color = col; if (kind !== 'line') { key.style.background = col; key.style.opacity = kind === 'div' ? 0.32 : 0.85; }
+        l.appendChild(key); l.appendChild(document.createTextNode(lab));
+        const v = document.createElement('b'); v.textContent = fmtPct(val);
+        row.appendChild(l); row.appendChild(v); tipEl.appendChild(row);
+      });
+      tipEl.style.display = 'block';
+      const cw = container.clientWidth, tw = tipEl.offsetWidth, leftPx = cx * (rect.width / W);
+      tipEl.style.left = (leftPx + 14 + tw > cw ? leftPx - tw - 14 : leftPx + 14) + 'px';
+      tipEl.style.top = (container.offsetTop + 8) + 'px';
+    }
+    function hide() { cross.style.opacity = 0; dot.style.opacity = 0; tipEl.style.display = 'none'; }
+    hit.addEventListener('pointermove', e => show(e.clientX));
+    hit.addEventListener('pointerleave', hide);
+    let focusIdx = pts.length - 1;
+    const showIdx = () => { const r = svg.getBoundingClientRect(); show(r.left + x(pts[focusIdx].date) * (r.width / W)); };
+    hit.addEventListener('focus', showIdx); hit.addEventListener('blur', hide);
+    hit.addEventListener('keydown', e => { if (e.key === 'ArrowLeft') focusIdx = Math.max(0, focusIdx - 1); else if (e.key === 'ArrowRight') focusIdx = Math.min(pts.length - 1, focusIdx + 1); else return; e.preventDefault(); showIdx(); });
   }
 
   function renderTable(sub) {
@@ -489,13 +640,14 @@
     const thead = table.querySelector('thead'), tbody = table.querySelector('tbody');
     thead.textContent = ''; tbody.textContent = '';
     const tr = document.createElement('tr');
-    ['Week ending', 'T price', 'T yield', 'VZ price', 'VZ yield', '10Y', 'T − 10Y', 'VZ − 10Y'].forEach(h => { const th = document.createElement('th'); th.textContent = h; tr.appendChild(th); });
+    const yl = BASIS[state.basis].short === 'Dividend yield' ? 'div yield' : 'total yield';
+    ['Week ending', 'T price', 'T ' + yl, 'T buyback', 'T shares YoY', 'VZ price', 'VZ ' + yl, 'VZ buyback', 'VZ shares YoY', '10Y', 'T − 10Y', 'VZ − 10Y'].forEach(h => { const th = document.createElement('th'); th.textContent = h; tr.appendChild(th); });
     thead.appendChild(tr);
     document.getElementById('table-desc').textContent = `${sub.length} weeks, most recent first. Yield basis: ${basisLabel()}.`;
     for (let i = sub.length - 1; i >= 0; i--) {
       const r = sub[i], tS = spread(r, k.t), vS = spread(r, k.v);
       const row = document.createElement('tr');
-      [[fmtDate(r.date)], [fmtPx(r.tP)], [fmtPct(r[k.t])], [fmtPx(r.vP)], [fmtPct(r[k.v])], [fmtPct(r.y10)], [fmtBp(tS), tS < 0], [fmtBp(vS), vS < 0]]
+      [[fmtDate(r.date)], [fmtPx(r.tP)], [fmtPct(r[k.t])], [fmtPct(r.tBb)], [fmtSigned(r.tShr)], [fmtPx(r.vP)], [fmtPct(r[k.v])], [fmtPct(r.vBb)], [fmtSigned(r.vShr)], [fmtPct(r.y10)], [fmtBp(tS), tS < 0], [fmtBp(vS), vS < 0]]
         .forEach(([txt, neg]) => { const td = document.createElement('td'); td.textContent = txt; if (neg) td.className = 'neg'; row.appendChild(td); });
       tbody.appendChild(row);
     }
@@ -504,10 +656,11 @@
   function renderNotes() {
     const n = document.getElementById('notes'); n.textContent = '';
     const paras = [
-      `Prices: ${META.sources.prices}. Dividends: ${META.sources.dividends}. Treasury: ${META.sources.treasury}.`,
+      `Prices: ${META.sources.prices}. Dividends per share: ${META.sources.dividends}. Cash flows and share counts: ${META.sources.cashflows}. Treasury: ${META.sources.treasury}.`,
       'AT&T prices before 11 April 2022 are restored to the level an investor actually paid. Yahoo Finance books the WarnerMedia spin-off as a 1324:1000 split and scales every earlier close down by 1.324, which would overstate AT&T\'s historical yield by about a third if left in place. Verizon has no such adjustment in the window.',
-      'Indicated yield annualises the most recent quarterly dividend on or before each date. Trailing 12M yield sums cash dividends with ex-dates in the prior 365 days. Both use the weekly closing price, so AT&T\'s April 2022 cut to $0.2775 shows up immediately on the indicated basis and rolls through over a year on the trailing basis.',
-      'Known gap: the dividend feed has no January 2026 ex-date for either company, so trailing 12M yields covering that quarter understate by one payment until the source is corrected.',
+      'Indicated dividend yield annualises the most recent quarterly dividend per share on or before each date, over the weekly closing price. AT&T\'s April 2022 cut to $0.2775 shows up immediately on that basis.',
+      'Trailing dividend yield, buyback yield and total shareholder yield come from the cash flow statement: trailing-twelve-month cash dividends paid to common shareholders, and cash paid to repurchase common stock, each divided by market capitalisation (weekly price times the latest cover-page share count on or before the date). A quarter enters the trailing sum at its period end. Buybacks are gross; neither company reports a common-stock issuance line, so dilution from employee plans shows up in the year-on-year share-count change instead.',
+      'Verizon tags its repurchase line only in years with activity (2015, 2026) plus explicit zeros for 2016, 2017 and the first half of 2025; years and quarters with no row are treated as zero for that line only. AT&T reports it every quarter.',
       `Data as of ${META.asOf}. Rebuild with scripts/build_dashboard.py after refreshing data/ with scripts/fetch_data.py.`,
     ];
     paras.forEach(t => { const p = document.createElement('p'); p.textContent = t; n.appendChild(p); });
@@ -520,7 +673,7 @@
     const s = document.getElementById('subline');
     s.appendChild(document.createTextNode('Weekly, ' + META.firstDate.slice(0, 4) + ' to '));
     const b = document.createElement('b'); b.textContent = fmtDate(last.date); s.appendChild(b);
-    s.appendChild(document.createTextNode('. Dividend yield on the price an investor paid at the time, compared with the 10-year constant-maturity Treasury.'));
+    s.appendChild(document.createTextNode('. Dividend yield, and dividends plus buybacks, on the price an investor paid at the time, compared with the 10-year constant-maturity Treasury.'));
     document.querySelectorAll('#range-seg button').forEach(bt => bt.setAttribute('aria-pressed', String(bt.dataset.range === state.range)));
     document.querySelectorAll('#basis-seg button').forEach(bt => bt.setAttribute('aria-pressed', String(bt.dataset.basis === state.basis)));
     renderTiles(sub);

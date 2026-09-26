@@ -4,12 +4,15 @@
 Sources
   Yahoo Finance chart API  daily closes, cash dividends and split-style events for T and VZ
   FRED                     DGS10, 10-year Treasury constant maturity yield
+  SEC XBRL company facts   cash dividends paid, share repurchases, cover-page shares outstanding
 
 Writes the same files scripts/build_dashboard.py reads:
   data/weekly_market_data.csv   Friday observations (last available value on or before each Friday)
                                 plus the latest trading day if it is not a Friday
   data/dividends_T.csv, data/dividends_VZ.csv
   data/corporate_actions.csv    every split-style event Yahoo reports, so the build can undo it
+  data/sec_facts_T.csv          one row per (concept, period) from the SEC facts API, latest filing wins
+  data/sec_facts_VZ.csv
 
 Yahoo's "close" field is split-adjusted, and Yahoo books AT&T's 2022 WarnerMedia spin-off
 as a 1324:1000 split. The build script multiplies pre-event closes by numerator/denominator
@@ -34,6 +37,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 UA = {"User-Agent": "Mozilla/5.0 (price-tracker; +https://github.com/sammchugh-gif/price-tracker)"}
+# The SEC asks for a descriptive User-Agent with a contact address. Set SEC_USER_AGENT to override.
+SEC_UA = {"User-Agent": __import__("os").environ.get("SEC_USER_AGENT", "price-tracker research (github.com/sammchugh-gif/price-tracker)")}
+CIK = {"T": "0000732717", "VZ": "0000732712"}
+SEC_CONCEPTS = [
+    ("us-gaap", "PaymentsForRepurchaseOfCommonStock"),
+    ("us-gaap", "PaymentsOfDividendsCommonStock"),
+    ("us-gaap", "PaymentsOfDividends"),
+    ("dei", "EntityCommonStockSharesOutstanding"),
+]
 
 
 def get(url: str) -> bytes:
@@ -71,6 +83,30 @@ def fred_dgs10() -> dict[date, float]:
     return out
 
 
+def sec_facts(ticker: str, since: date) -> list[dict]:
+    """Company facts for the concepts the build needs, one row per (start, end), latest filing wins."""
+    req = urllib.request.Request(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{CIK[ticker]}.json", headers=SEC_UA)
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        facts = json.loads(resp.read())["facts"]
+    out = []
+    for tax, concept in SEC_CONCEPTS:
+        units = facts.get(tax, {}).get(concept, {}).get("units", {})
+        if not units:
+            continue
+        rows = next(iter(units.values()))
+        best: dict[tuple[str, str], dict] = {}
+        for r in rows:
+            if r["end"] < since.isoformat():
+                continue
+            key = (r.get("start", ""), r["end"])
+            if key not in best or r.get("filed", "") > best[key].get("filed", ""):
+                best[key] = r
+        for (start, end), r in sorted(best.items(), key=lambda kv: (kv[0][1], kv[0][0])):
+            out.append({"concept": concept, "start": start, "end": end, "value": r["val"], "form": r.get("form", ""),
+                        "fy": r.get("fy", ""), "fp": r.get("fp", ""), "filed": r.get("filed", "")})
+    return out
+
+
 def last_on_or_before(series: dict[date, float], d: date, lookback: int = 6) -> float | None:
     for k in range(lookback):
         v = series.get(d - timedelta(days=k))
@@ -104,6 +140,11 @@ def main() -> int:
     vz = yahoo("VZ", start, today)
     print("fetching FRED DGS10 ...", file=sys.stderr)
     dgs10 = fred_dgs10()
+    sec = {}
+    for tk in ("T", "VZ"):
+        print(f"fetching SEC facts {tk} ...", file=sys.stderr)
+        sec[tk] = sec_facts(tk, start - timedelta(days=366))
+        time.sleep(0.5)
 
     last_trading = max(max(t["closes"]), max(vz["closes"]))
     grid = fridays(start, last_trading)
@@ -134,6 +175,12 @@ def main() -> int:
             for d, num, den in src["splits"]:
                 w.writerow([name, d.isoformat(), "split_adjustment", num, den,
                             "Reported by Yahoo Finance as a split; the build multiplies earlier closes by numerator/denominator."])
+
+    for tk, rows in sec.items():
+        with (DATA / f"sec_facts_{tk}.csv").open("w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["concept", "start", "end", "value", "form", "fy", "fp", "filed"])
+            w.writeheader()
+            w.writerows(rows)
 
     print(f"wrote {len(grid)} weekly rows through {last_trading}, "
           f"{len(t['dividends'])} T dividends, {len(vz['dividends'])} VZ dividends", file=sys.stderr)
